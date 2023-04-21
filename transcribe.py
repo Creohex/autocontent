@@ -1,12 +1,13 @@
 #!/Users/creohex/github/autocontent/.venv/bin/python
 
-import click
+
 import json
+import re
 import time
-import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import click
 from youtube_transcript_api import YouTubeTranscriptApi
 
 
@@ -92,6 +93,15 @@ def load_subtitiles(file):
     return subs
 
 
+def parse_time_input(time_string):
+    """Converts HH:MM:SS time format to float value."""
+    if not re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
+        raise Exception(f"Incorrect time format: {time_string}")
+
+    h, m, s = time_string.split(":")
+    return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
+
+
 @click.command()
 @click.option("-i", "--video_id", required=True, type=str, help="Youtube video ID")
 @click.option(
@@ -167,47 +177,21 @@ def convert(source, fmt, force):
     click.echo("Done.")
 
 
-@click.command()
-def chunk(source):
-    # 0:00 - Introduction
-    # 1:38 - Starting a relationship
-    # 5:37 - Couples therapy
-    # 12:54 - Why relationships fail
-    # 20:11 - Drama in relationships
-    # 25:38 - Success in relationships
-    # 32:03 - Dating
-    # 40:39 - Sex
-    # 42:32 - Cheating
-    # 51:33 - Polyamory
-    # 53:24 - Johnny Depp and Amber Heard trial
-    # 1:22:02 - Forensic psychology
-    # 1:32:12 - PTSD
-    # 1:41:47 - Advice for young people
-    # 1:44:38 - Love
-
-    # provide a list of timestamps and its descriptions
-    # output subs to separate files? specific file with a selected topic?
-
-    pass
-
-
-@click.command(help="...")
+@click.command(help="Cuts subtitles into a chunk with possible time shift")
 @click.option("-s", "--source", required=True, help="path to subs in json format")
 @click.option(
     "-a",
     "--t1",
-    type=float,
-    # default=0.0,
+    # type=(float, str),
     required=True,
-    help="left time bracket in seconds",
+    help="left time bracket in seconds or hh:mm:ss format",
 )
 @click.option(
     "-b",
     "--t2",
-    type=float,
-    # default=0.0,
+    # type=(float, str),
     required=True,
-    help="right time bracket in seconds",
+    help="right time bracket in seconds or hh:mm:ss format",
 )
 @click.option(
     "-n",
@@ -239,7 +223,7 @@ def chunk(source):
     default=False,
     help="shifts timestamps to 0",
 )
-def normalize(source, t1, t2, name, fmt, force, shift):
+def chunk(source, t1, t2, name, fmt, force, shift):
     """Extracts subtitles in selected time range and outputs in desired file format
 
     source (str): youtube subtitle JSON file
@@ -248,8 +232,13 @@ def normalize(source, t1, t2, name, fmt, force, shift):
     name (str): override output file name
     fmt (str): output subtitle format
     force (bool): overwrite output file?
+    shift (bool): shifts subtitle timestamps to the left
     """
 
+    if isinstance(t1, str):
+        t1 = parse_time_input(t1)
+    if isinstance(t2, str):
+        t2 = parse_time_input(t2)
     if t1 >= t2:
         raise Exception("Incorrect timeframes selected")
 
@@ -266,9 +255,10 @@ def normalize(source, t1, t2, name, fmt, force, shift):
     for record in subs:
         end = record["start"] + record["duration"]
         if record["start"] >= t1 and end < (t2 + record["duration"]):
-            if padding is None:
+            if shift and padding is None:
                 padding = record["start"]
-            record["start"] -= padding
+            if shift:
+                record["start"] -= padding
             filtered.append(record)
 
     formatter = format_txt if fmt == FMT_TXT else format_srt
@@ -286,6 +276,5 @@ if __name__ == "__main__":
     cli.add_command(pull)
     cli.add_command(convert)
     cli.add_command(chunk)
-    cli.add_command(normalize)
 
     cli()
