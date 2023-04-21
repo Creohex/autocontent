@@ -57,6 +57,41 @@ def ensure_folder(file_path):
             directory.mkdir()
 
 
+def check_existing_file(file, force):
+    if file.exists():
+        if force:
+            file.unlink()
+        else:
+            raise Exception("output file already exists")
+
+
+def write_to_file(file, contents):
+    """..."""
+
+    try:
+        with open(file, "w") as target_file:
+            target_file.write(contents)
+    except:
+        file.unlink()
+        raise
+
+
+def load_subtitiles(file):
+    """Read JSON from file."""
+
+    s = Path(file).absolute()
+    if not s.exists():
+        raise Exception("File not found")
+    if not s.suffix == ".json":
+        raise Exception("Incorrect file format")
+
+    with open(s) as file:
+        # subs = json.load(file)[0]
+        subs = json.load(file)
+
+    return subs
+
+
 @click.command()
 @click.option("-i", "--video_id", required=True, type=str, help="Youtube video ID")
 @click.option(
@@ -81,23 +116,13 @@ def pull(video_id, name, force):
     target_name = f"{name or video_id}.json"
     target = Path(__file__).parent / "subs" / target_name
 
-    if target.exists():
-        if force:
-            target.unlink()
-        else:
-            raise Exception("output file already exists")
-
+    check_existing_file(target, force)
     ensure_folder(target)
 
     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
     transcript = transcript_list.find_transcript(["en"]).fetch()
 
-    try:
-        with open(target, "w") as target_file:
-            target_file.write(json.dumps(transcript))
-    except:
-        target.unlink()
-        raise
+    write_to_file(target, json.dumps(transcript))
 
     click.echo("Done.")
 
@@ -128,31 +153,16 @@ def convert(source, fmt, force):
     """
 
     s = Path(source).absolute()
-    if not s.exists():
-        raise Exception("File not found")
-    if not s.suffix == ".json":
-        raise Exception("Incorrect file format")
-
     target = s.parent / f"{s.stem}.{fmt}"
+    subs = load_subtitiles(s)
+
     click.echo(f"Source file: {s}\nTarget file: {target}")
 
-    with open(s) as file:
-        # subs = json.load(file)[0]
-        subs = json.load(file)
+    check_existing_file(target, force)
+    ensure_folder(target)
 
-    if target.exists():
-        if force:
-            target.unlink()
-        else:
-            raise Exception("output file already exists")
-
-    try:
-        with open(target, "w") as target_file:
-            formatter = format_txt if fmt == FMT_TXT else format_srt
-            target_file.write(formatter(subs))
-    except:
-        target.unlink()
-        raise
+    formatter = format_txt if fmt == FMT_TXT else format_srt
+    write_to_file(target, formatter(subs))
 
     click.echo("Done.")
 
@@ -181,6 +191,92 @@ def chunk(source):
     pass
 
 
+@click.command(help="...")
+@click.option("-s", "--source", required=True, help="path to subs in json format")
+@click.option(
+    "-a",
+    "--t1",
+    type=float,
+    # default=0.0,
+    required=True,
+    help="left time bracket in seconds",
+)
+@click.option(
+    "-b",
+    "--t2",
+    type=float,
+    # default=0.0,
+    required=True,
+    help="right time bracket in seconds",
+)
+@click.option(
+    "-n",
+    "--name",
+    required=False,
+    type=str,
+    default="",
+    help="output file name",
+)
+@click.option(
+    "-t",
+    "--fmt",
+    default=FMT_TXT,
+    type=click.Choice(FORMATS, case_sensitive=True),
+    help=f"output format ({','.join(FORMATS)})",
+)
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="override target file if exists?",
+)
+@click.option(
+    "--shift",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="shifts timestamps to 0",
+)
+def normalize(source, t1, t2, name, fmt, force, shift):
+    """Extracts subtitles in selected time range and outputs in desired file format
+
+    source (str): youtube subtitle JSON file
+    t1 (float): left time bracket
+    t2 (float): right time bracket
+    name (str): override output file name
+    fmt (str): output subtitle format
+    force (bool): overwrite output file?
+    """
+
+    if t1 >= t2:
+        raise Exception("Incorrect timeframes selected")
+
+    s = Path(source).absolute()
+    target = s.parent / f"{name or s.stem}_chunk_{int(t1)}_{int(t2)}.{fmt}"
+    subs = load_subtitiles(s)
+
+    check_existing_file(target, force)
+    ensure_folder(target)
+
+    filtered = []
+    padding = None
+
+    for record in subs:
+        end = record["start"] + record["duration"]
+        if record["start"] >= t1 and end < (t2 + record["duration"]):
+            if padding is None:
+                padding = record["start"]
+            record["start"] -= padding
+            filtered.append(record)
+
+    formatter = format_txt if fmt == FMT_TXT else format_srt
+    write_to_file(target, formatter(filtered))
+
+    click.echo(f"Wrote to: {target}\nDone.")
+
+
 if __name__ == "__main__":
 
     @click.group
@@ -190,5 +286,6 @@ if __name__ == "__main__":
     cli.add_command(pull)
     cli.add_command(convert)
     cli.add_command(chunk)
+    cli.add_command(normalize)
 
     cli()
