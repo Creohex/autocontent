@@ -142,8 +142,8 @@ def chunk(source, t1, t2, name, fmt, force, shift):
         t1 = utils.parse_time_input(t1)
     if isinstance(t2, str):
         t2 = utils.parse_time_input(t2)
-    if t1 >= t2:
-        raise Exception("Incorrect timeframes selected")
+    if any(lambda _: not isinstance(_, float), [t1, t2]) or t1 >= t2:
+        raise Exception("Incorrect time brackets provided")
 
     s = Path(source).absolute()
     target = s.parent / f"{name or s.stem}_chunk_{int(t1)}_{int(t2)}.{fmt}"
