@@ -3,6 +3,7 @@
 import click
 from autocontent import groups
 
+
 if __name__ == "__main__":
-    grp = click.CommandCollection(sources=groups)
-    grp()
+    multi_group = click.CommandCollection(sources=groups)
+    multi_group()
