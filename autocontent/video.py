@@ -17,9 +17,6 @@ from . import utils
 def test():
     video_file = Path(".").parent / "sources" / "v1.mp4"
     video = VideoFileClip(str(video_file)).subclip(15, 20)
-    # start_time = 10  # in seconds
-    # end_time = 30    # in seconds
-    # ffmpeg_extract_subclip(str(video_file), start_time, end_time, targetname=str(video_file.parent/"clip.mp4"))
 
 
 @click.command()
@@ -52,23 +49,14 @@ def test():
 def clip(source, t1, t2, output, strip_sound, force):
     """Cuts a clip from provided video file."""
 
-    t1 = utils.parse_time_input(t1)
-    t2 = utils.parse_time_input(t2)
-    if t1 >= t2:
-        raise Exception(f"Incorrect time range provided ({t1} - {t2})")
-
-    source_path = Path(source).absolute()
-    video_path = utils.check_video_file(source)
-    output = source_path.parent / Path(
-        output or f"{source_path.stem}-clip-{str(t1)}-{str(t2)}.{utils.FMT_MP4}"
+    utils.clip_video(
+        source,
+        t1,
+        t2,
+        target_file=output,
+        strip_sound=strip_sound,
+        force=force,
     )
-    utils.check_existing_file(output, force=force)
-
-    with VideoFileClip(video_path) as vid:
-        subclip = vid.subclip(t1, t2)
-        if strip_sound:
-            subclip = subclip.without_audio()
-        subclip.write_videofile(str(output))
 
 
 # Command group registration:

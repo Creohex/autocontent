@@ -123,6 +123,23 @@ def load_subtitiles(file):
     return subs
 
 
+def parse_time_input(time_string):
+    """Parses time input in various forms."""
+
+    h = m = s = 0
+
+    if re.match(r"^\d+(\.(0?[0-9]|[0-9]{1,2}))?$", time_string):
+        return float(time_string)
+    elif re.match(r"^\d{1,2}:\d{1,2}$", time_string):
+        m, s = time_string.split(":")
+    elif re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
+        h, m, s = time_string.split(":")
+    else:
+        raise Exception(f"Incorrect time format: {time_string}")
+
+    return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
+
+
 def check_video_extension(file):
     """Checks if provided video file type is supported."""
 
@@ -142,18 +159,23 @@ def check_video_file(file) -> VideoFileClip:
     # return VideoFileClip(str(s))
 
 
-def parse_time_input(time_string):
-    """Parses time input in various forms."""
+def clip_video(source_file, t1, t2, target_file=None, strip_sound=False, force=False):
+    """Cut clip from a video file."""
 
-    h = m = s = 0
+    t1 = parse_time_input(t1)
+    t2 = parse_time_input(t2)
+    if t1 >= t2:
+        raise Exception(f"Incorrect time range provided ({t1} - {t2})")
 
-    if re.match(r"^\d+(\.(0?[0-9]|[0-9]{1,2}))?$", time_string):
-        return float(time_string)
-    elif re.match(r"^\d{1,2}:\d{1,2}$", time_string):
-        m, s = time_string.split(":")
-    elif re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
-        h, m, s = time_string.split(":")
-    else:
-        raise Exception(f"Incorrect time format: {time_string}")
+    source_file = Path(source_file).absolute()
+    video_path = check_video_file(source_file)
+    target_file = source_file.parent / Path(
+        target_file or f"{source_file.stem}-clip-{str(t1)}-{str(t2)}.{FMT_MP4}"
+    )
+    check_existing_file(target_file, force=force)
 
-    return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
+    with VideoFileClip(video_path) as vid:
+        subclip = vid.subclip(t1, t2)
+        if strip_sound:
+            subclip = subclip.without_audio()
+        subclip.write_videofile(str(target_file))

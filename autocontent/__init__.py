@@ -1,5 +1,5 @@
-from .transcribe import grp as grp_transcribe
+from .subs import grp as grp_subs
 from .video import grp as grp_video
 
 
-groups = [grp_transcribe, grp_video]
+groups = [grp_subs, grp_video]
