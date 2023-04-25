@@ -1,19 +1,17 @@
-#!/Users/creohex/github/autocontent/.venv/bin/python
-
 import json
 from pathlib import Path
 
 import click
 from youtube_transcript_api import YouTubeTranscriptApi
 
-import utils
-from utils import FMT_TXT, FMT_SRT, FORMATS
+from . import utils
+from .utils import FMT_TXT, FMT_SRT, FORMATS_SUB
 
 
 @click.command()
 @click.option("-i", "--video_id", required=True, type=str, help="Youtube video ID")
 @click.option(
-    "-n", "--name", required=False, type=str, default="", help="output file name"
+    "-o", "--output", required=False, type=str, default="", help="output file name"
 )
 @click.option(
     "-f",
@@ -23,7 +21,7 @@ from utils import FMT_TXT, FMT_SRT, FORMATS
     show_default=True,
     help="override target file if exists?",
 )
-def pull(video_id, name, force):
+def pull(video_id, output, force):
     """Downloads youtube video subtitles
 
     video_id (str): youtube video ID
@@ -31,10 +29,10 @@ def pull(video_id, name, force):
     force (bool): overwrite output file if exists?
     """
 
-    target_name = f"{name or video_id}.json"
-    target = Path(__file__).parent / "subs" / target_name
+    target_name = f"{output or video_id}.json"
+    target = Path(__file__).parent.parent / "subs" / target_name
 
-    utils.check_existing_file(target, force)
+    utils.check_existing_file(target, force=force)
     utils.ensure_folder(target)
 
     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
@@ -51,8 +49,8 @@ def pull(video_id, name, force):
     "-t",
     "--fmt",
     default=FMT_TXT,
-    type=click.Choice(FORMATS, case_sensitive=True),
-    help=f"output format ({','.join(FORMATS)})",
+    type=click.Choice(FORMATS_SUB, case_sensitive=True),
+    help=f"output format ({','.join(FORMATS_SUB)})",
 )
 @click.option(
     "-f",
@@ -74,14 +72,16 @@ def convert(source, fmt, force):
     target = s.parent / f"{s.stem}.{fmt}"
 
     click.echo(f"Source file: {s}\nTarget file: {target}")
-    utils.check_existing_file(target, force)
+    utils.check_existing_file(target, force=force)
     utils.ensure_folder(target)
     utils.write_to_file(target, utils.format_subs(utils.load_subtitiles(s), fmt))
     click.echo("Done.")
 
 
 @click.command(help="Cuts subtitles into a chunk with possible time shift")
-@click.option("-s", "--source", required=True, help="path to subs in json format")
+@click.option(
+    "-s", "--source", required=True, type=str, help="path to subs in json format"
+)
 @click.option(
     "-a",
     "--t1",
@@ -108,8 +108,8 @@ def convert(source, fmt, force):
     "-t",
     "--fmt",
     default=FMT_TXT,
-    type=click.Choice(FORMATS, case_sensitive=True),
-    help=f"output format ({','.join(FORMATS)})",
+    type=click.Choice(FORMATS_SUB, case_sensitive=True),
+    help=f"output format ({','.join(FORMATS_SUB)})",
 )
 @click.option(
     "-f",
@@ -138,18 +138,17 @@ def chunk(source, t1, t2, name, fmt, force, shift):
     shift (bool): shifts subtitle timestamps to the left
     """
 
-    if isinstance(t1, str):
-        t1 = utils.parse_time_input(t1)
-    if isinstance(t2, str):
-        t2 = utils.parse_time_input(t2)
-    if any(lambda _: not isinstance(_, float), [t1, t2]) or t1 >= t2:
+    t1 = utils.parse_time_input(t1)
+    t2 = utils.parse_time_input(t2)
+    # if any(lambda _: not isinstance(_, float), [t1, t2]) or t1 >= t2:
+    if t1 >= t2:
         raise Exception("Incorrect time brackets provided")
 
     s = Path(source).absolute()
     target = s.parent / f"{name or s.stem}_chunk_{int(t1)}_{int(t2)}.{fmt}"
     subs = utils.load_subtitiles(s)
 
-    utils.check_existing_file(target, force)
+    utils.check_existing_file(target, force=force)
     utils.ensure_folder(target)
 
     filtered = []

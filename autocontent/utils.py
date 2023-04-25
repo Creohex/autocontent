@@ -116,10 +116,17 @@ def load_subtitiles(file):
 
 
 def parse_time_input(time_string):
-    """Converts HH:MM:SS time format to float value."""
+    """Parses time input in various forms."""
 
-    if not re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
+    h = m = s = 0
+
+    if re.match(r"^\d+(\.(0?[0-9]|[0-9]{1,2}))?$", time_string):
+        return float(time_string)
+    elif re.match(r"^\d{1,2}:\d{1,2}$", time_string):
+        m, s = time_string.split(":")
+    elif re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
+        h, m, s = time_string.split(":")
+    else:
         raise Exception(f"Incorrect time format: {time_string}")
 
-    h, m, s = time_string.split(":")
-    return 1.0 * int(h) * 3600 + int(m) * 60 + int(s)
+    return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
