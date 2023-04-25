@@ -4,12 +4,20 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from moviepy.editor import VideoFileClip
+
 
 TIME_FMT = r"%H:%M:%S"
 # TIME_FMT_MS = r"%H:%M:%S,%f"
+
 FMT_TXT = "txt"
 FMT_SRT = "srt"
-FORMATS = [FMT_TXT, FMT_SRT]
+FORMATS_SUB = [FMT_TXT, FMT_SRT]
+"""Subtitle formats."""
+
+FMT_MP4 = "mp4"
+FORMATS_VID = [FMT_MP4]
+"""Video formats."""
 
 
 def format_time_ms(seconds):
@@ -71,7 +79,7 @@ def ensure_folder(file_path):
             directory.mkdir()
 
 
-def check_existing_file(file, force):
+def check_existing_file(file, force=False):
     """Checks if file exists and deletes it when forced to."""
 
     if file.exists():
@@ -113,6 +121,25 @@ def load_subtitiles(file):
         subs = json.load(file)
 
     return subs
+
+
+def check_video_extension(file):
+    """Checks if provided video file type is supported."""
+
+    return Path(file).suffix[1:] in FORMATS_VID
+
+
+def check_video_file(file) -> VideoFileClip:
+    """Checks if video file exists and in correct ."""
+
+    file = Path(file).absolute()
+    if not file.exists():
+        raise Exception("File not found")
+    if not check_video_extension(file):
+        raise Exception(f"Incorrect file format (supported: {','.join(FORMATS_VID)})")
+
+    return str(file)
+    # return VideoFileClip(str(s))
 
 
 def parse_time_input(time_string):
