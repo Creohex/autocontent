@@ -5,12 +5,14 @@ import time
 import uuid
 from pathlib import Path
 
+# from typing import e
+
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from . import utils
 
 
-DEFAULT_DIR = Path(__file__).absolute().parent.parent / "subs/"
+DEFAULT_DIR = utils.ROOT_DIR / "subs/"
 """Default directory for subtitle file management."""
 
 FMT_JSON = "json"
@@ -25,8 +27,13 @@ class Subs:
 
     locales = ["en"]
 
-    def __init__(self, transcript=None, filepath=None, video_id=None) -> None:
-        if not bool(filepath) ^ bool(video_id) ^ bool(transcript):
+    def __init__(
+        self,
+        transcript: str = None,
+        filepath: str = None,
+        video_id: str = None,
+    ) -> Subs:
+        if sum(map(bool, (transcript, filepath, video_id))) != 1:
             raise Exception("Either transcript, filepath or video_id must be provided")
 
         self.filepath = filepath
@@ -51,7 +58,7 @@ class Subs:
             self.transcript = transcript_list.find_transcript(self.locales).fetch()
 
     @classmethod
-    def load_subtitiles(cls, file) -> list[Subs]:
+    def load_subtitiles(cls, file: Path | str) -> list[Subs]:
         """Read JSON from file."""
 
         s = Path(file).absolute()
@@ -66,16 +73,19 @@ class Subs:
 
         return subs
 
-    # def pull(self, video_id, output_file=None, force=False):
-
-    def save(self, output_file, fmt=FMT_TXT, force=False) -> None:
+    def save(
+        self,
+        output_file: Path,
+        fmt: str | None = FMT_TXT,
+        force: bool | None = False,
+    ) -> None:
         """Export subs to file in preferred format."""
 
         utils.check_existing_file(output_file, force=force)
         utils.ensure_folder(output_file)
         utils.write_to_file(output_file, self.format_subs(self.transcript, fmt))
 
-    def cut(self, t1, t2) -> Subs:
+    def cut(self, t1: int | float | str, t2: int | float | str) -> Subs:
         """Cuts subtitles in selected time range.
 
         t1 (float/int/str): left time bracket
@@ -96,7 +106,7 @@ class Subs:
 
         return Subs(transcript=filtered)
 
-    def shift_left(self):
+    def shift_left(self) -> None:
         """Shifts transcript timestamps to the left."""
 
         if not self.transcript:
@@ -107,7 +117,13 @@ class Subs:
         for record in self.transcript:
             record["start"] -= offset
 
-    def derive_chunk_filename(self, t1, t2, fmt, target_file=None):
+    def derive_chunk_filename(
+        self,
+        t1: float,
+        t2: float,
+        fmt: str,
+        target_file: Path | str = None,
+    ) -> Path:
         """Generate filename for subtitle chunk.
 
         t1 (str): left time bracket
@@ -131,7 +147,7 @@ class Subs:
         return target_file
 
     @classmethod
-    def format_txt(cls, records):
+    def format_txt(cls, records: list[dict[str, int | str]]) -> str:
         """.txt formatter."""
 
         text = ""
@@ -144,7 +160,7 @@ class Subs:
         return text
 
     @classmethod
-    def format_srt(cls, records):
+    def format_srt(cls, records: list[dict[str, int | str]]) -> str:
         """.srt formatter."""
 
         text = ""
@@ -155,7 +171,7 @@ class Subs:
         return text
 
     @classmethod
-    def format_subs(cls, records, fmt):
+    def format_subs(cls, records: list[dict[str, int | str]], fmt: str) -> str:
         """Formats subtitles from JSON to appropriate format.
 
         records (list): subtitles in JSON format
