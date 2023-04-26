@@ -1,5 +1,5 @@
-from .subs import grp as grp_subs
-from .video import grp as grp_video
+import click
+from .cli import grp
 
 
-groups = [grp_subs, grp_video]
+multi_group = click.CommandCollection(sources=[grp])
