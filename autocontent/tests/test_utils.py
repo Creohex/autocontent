@@ -6,6 +6,11 @@ from .. import utils
 @pytest.mark.parametrize(
     ("time_string", "expected"),
     [
+        (0, 0.0),
+        (0.0, 0.0),
+        (123, 123.0),
+        (.012321312, 0.012321312),
+        (0x123, 291.0),
         ("0", 0.0),
         ("0.0", 0.0),
         ("0.1", 0.1),
@@ -19,13 +24,13 @@ from .. import utils
     ],
 )
 def test_parse_time_input(time_string, expected):
-    assert utils.parse_time_input(time_string) == expected
+    assert utils.parse_time_value(time_string) == expected
 
 
 @pytest.mark.parametrize(
     "time_string",
-    ["", "gibberish", "123.123", "1.1.1", "0.999", "00:" "00:00:00:00"],
+    ["", "gibberish", "123.123", "1.1.1", "0.999", "00:" "00:00:00:00", "0b123"],
 )
 def test_parse_time_input_negative(time_string):
     with pytest.raises(Exception):
-        utils.parse_time_input(time_string)
+        utils.parse_time_value(time_string)
