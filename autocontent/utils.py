@@ -10,24 +10,13 @@ from moviepy.editor import VideoFileClip
 TIME_FMT = r"%H:%M:%S"
 # TIME_FMT_MS = r"%H:%M:%S,%f"
 
-FMT_TXT = "txt"
-FMT_SRT = "srt"
-FORMATS_SUB = [FMT_TXT, FMT_SRT]
-"""Subtitle formats."""
-
 FMT_MP4 = "mp4"
 FORMATS_VID = [FMT_MP4]
 """Video formats."""
 
 
 def format_time_ms(seconds):
-    """Formats seconds to HH:MM:SS:MS format.
-
-    seconds (float): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """Formats seconds to HH:MM:SS:MS format."""
 
     formatted_td = str(timedelta(seconds=seconds)).split(".")[0]
     formatted_time = datetime.strptime(formatted_td, TIME_FMT)
@@ -35,35 +24,6 @@ def format_time_ms(seconds):
     formatted_time_str = formatted_time.strftime(TIME_FMT)
     formatted_str = f"{formatted_time_str},{ms:03d}"
     return formatted_str
-
-
-def format_txt(records):
-    text = ""
-    for record in records:
-        start = time.strftime(TIME_FMT, time.gmtime(record["start"]))
-        end = time.strftime(TIME_FMT, time.gmtime(record["start"] + record["duration"]))
-        text += f"[{start} - {end}] {record['text']}\n"
-    return text
-
-
-def format_srt(records):
-    text = ""
-    for i, record in enumerate(records):
-        start = format_time_ms(record["start"])
-        end = format_time_ms(record["start"] + record["duration"])
-        text += f"{i + 1}\n{start} --> {end}\n{record['text']}\n\n"
-    return text
-
-
-def format_subs(records, format):
-    """Formats subtitles (JSON -> txt/srt/...)
-
-    records (list): subtitles in JSON format
-    format (str): prefered output format
-    """
-
-    formatter = format_txt if format == FMT_TXT else format_srt
-    return formatter(records)
 
 
 def ensure_folder(file_path):
@@ -82,11 +42,11 @@ def ensure_folder(file_path):
 def check_existing_file(file, force=False):
     """Checks if file exists and deletes it when forced to."""
 
-    if file.exists():
+    if file.is_file() and file.exists():
         if force:
             file.unlink()
         else:
-            raise Exception("output file already exists")
+            raise Exception(f"file already exists: {file}")
 
 
 def write_to_file(file, contents):
@@ -96,8 +56,10 @@ def write_to_file(file, contents):
     contents (): _description_
     """
 
-    if not isinstance(file, Path):
-        raise Exception(f"'file' must be a Path object ({type(file)} was provided)")
+    file = Path(file)
+
+    if file.exists():
+        raise Exception(f"Couldn't write to {file}: already exists.")
 
     try:
         with open(file, "w") as target_file:
@@ -107,37 +69,30 @@ def write_to_file(file, contents):
         raise
 
 
-def load_subtitiles(file):
-    """Read JSON from file."""
-
-    s = Path(file).absolute()
-    if not s.exists():
-        raise Exception("File not found")
-    if not s.suffix == ".json":
-        raise Exception("Incorrect file format")
-
-    with open(s) as file:
-        # subs = json.load(file)[0]
-        subs = json.load(file)
-
-    return subs
-
-
-def parse_time_input(time_string):
+def parse_time_value(predicate):
     """Parses time input in various forms."""
 
-    h = m = s = 0
+    match predicate:
+        case float():
+            return predicate
+        case int():
+            return float(predicate)
+        case str():
+            h = m = s = 0
+            if re.match(r"^\d+(\.(0?[0-9]|[0-9]{1,2}))?$", predicate):
+                return float(predicate)
+            elif re.match(r"^\d{1,2}:\d{1,2}$", predicate):
+                m, s = predicate.split(":")
+            elif re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", predicate):
+                h, m, s = predicate.split(":")
+            else:
+                raise Exception(f"Incorrect time format: {predicate}")
 
-    if re.match(r"^\d+(\.(0?[0-9]|[0-9]{1,2}))?$", time_string):
-        return float(time_string)
-    elif re.match(r"^\d{1,2}:\d{1,2}$", time_string):
-        m, s = time_string.split(":")
-    elif re.match(r"^\d{1,2}:\d{1,2}:\d{1,2}$", time_string):
-        h, m, s = time_string.split(":")
-    else:
-        raise Exception(f"Incorrect time format: {time_string}")
-
-    return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
+            return 1.0 * (int(h) * 3600 + int(m) * 60 + int(s))
+        case _:
+            raise Exception(
+                f"Invalid time argument type ({predicate}, {type(predicate)})"
+            )
 
 
 def check_video_extension(file):
@@ -162,8 +117,8 @@ def check_video_file(file) -> VideoFileClip:
 def clip_video(source_file, t1, t2, target_file=None, strip_sound=False, force=False):
     """Cut clip from a video file."""
 
-    t1 = parse_time_input(t1)
-    t2 = parse_time_input(t2)
+    t1 = parse_time_value(t1)
+    t2 = parse_time_value(t2)
     if t1 >= t2:
         raise Exception(f"Incorrect time range provided ({t1} - {t2})")
 

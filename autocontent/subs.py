@@ -1,180 +1,172 @@
+from __future__ import annotations
+
 import json
+import time
+import uuid
 from pathlib import Path
 
-import click
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from . import utils
-from .utils import FMT_TXT, FMT_SRT, FORMATS_SUB
 
 
-@click.command()
-@click.option("-i", "--video_id", required=True, type=str, help="Youtube video ID")
-@click.option(
-    "-o", "--output", required=False, type=str, default="", help="output file name"
-)
-@click.option(
-    "-f",
-    "--force",
-    default=False,
-    is_flag=True,
-    show_default=True,
-    help="override target file if exists?",
-)
-def pull(video_id, output, force):
-    """Downloads youtube video subtitles
+DEFAULT_DIR = Path(__file__).absolute().parent.parent / "subs/"
+"""Default directory for subtitle file management."""
 
-    video_id (str): youtube video ID
-    name (str): override name for output file
-    force (bool): overwrite output file if exists?
-    """
-
-    target_name = f"{output or video_id}.json"
-    target = Path(__file__).parent.parent / "subs" / target_name
-
-    utils.check_existing_file(target, force=force)
-    utils.ensure_folder(target)
-
-    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-    transcript = transcript_list.find_transcript(["en"]).fetch()
-
-    utils.write_to_file(target, json.dumps(transcript))
-
-    click.echo("Done.")
+FMT_JSON = "json"
+FMT_TXT = "txt"
+FMT_SRT = "srt"
+FORMATS_SUB = [FMT_JSON, FMT_TXT, FMT_SRT]
+"""Supported subtitle formats."""
 
 
-@click.command()
-@click.option("-s", "--source", required=True, help="path to subs in json format")
-@click.option(
-    "-t",
-    "--fmt",
-    default=FMT_TXT,
-    type=click.Choice(FORMATS_SUB, case_sensitive=True),
-    help=f"output format ({','.join(FORMATS_SUB)})",
-)
-@click.option(
-    "-f",
-    "--force",
-    is_flag=True,
-    show_default=True,
-    default=False,
-    help="override target file if exists?",
-)
-def convert(source, fmt, force):
-    """Converts youtube video JSON transcription into readable text with timestamps.
+class Subs:
+    """Video subtitle model."""
 
-    source (str): path to .json file
-    fmt (str): output file format (txt, srt)
-    force (bool): override output file if exists
-    """
+    locales = ["en"]
 
-    s = Path(source).absolute()
-    target = s.parent / f"{s.stem}.{fmt}"
+    def __init__(self, transcript=None, filepath=None, video_id=None) -> None:
+        if not bool(filepath) ^ bool(video_id) ^ bool(transcript):
+            raise Exception("Either transcript, filepath or video_id must be provided")
 
-    click.echo(f"Source file: {s}\nTarget file: {target}")
-    utils.check_existing_file(target, force=force)
-    utils.ensure_folder(target)
-    utils.write_to_file(target, utils.format_subs(utils.load_subtitiles(s), fmt))
-    click.echo("Done.")
+        self.filepath = filepath
+        self.video_id = video_id
 
+        if transcript:
+            expected_keys = set(["text", "start", "duration"])
+            if (
+                not isinstance(transcript, list)
+                or not all((isinstance(t, dict) for t in transcript))
+                or any(
+                    bool(set(t.keys()).symmetric_difference(expected_keys))
+                    for t in transcript
+                )
+            ):
+                raise Exception("Invalid transcript structure")
+            self.transcript = transcript
+        elif filepath:
+            self.transcript = self.load_subtitiles(filepath)
+        else:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            self.transcript = transcript_list.find_transcript(self.locales).fetch()
 
-@click.command(help="Cuts subtitles into a chunk with possible time shift")
-@click.option(
-    "-s", "--source", required=True, type=str, help="path to subs in json format"
-)
-@click.option(
-    "-a",
-    "--t1",
-    # type=(float, str),
-    required=True,
-    help="left time bracket in seconds or hh:mm:ss format",
-)
-@click.option(
-    "-b",
-    "--t2",
-    # type=(float, str),
-    required=True,
-    help="right time bracket in seconds or hh:mm:ss format",
-)
-@click.option(
-    "-n",
-    "--name",
-    required=False,
-    type=str,
-    default="",
-    help="output file name",
-)
-@click.option(
-    "-t",
-    "--fmt",
-    default=FMT_TXT,
-    type=click.Choice(FORMATS_SUB, case_sensitive=True),
-    help=f"output format ({','.join(FORMATS_SUB)})",
-)
-@click.option(
-    "-f",
-    "--force",
-    is_flag=True,
-    show_default=True,
-    default=False,
-    help="override target file if exists?",
-)
-@click.option(
-    "--shift",
-    is_flag=True,
-    show_default=True,
-    default=False,
-    help="shifts timestamps to 0",
-)
-def chunk(source, t1, t2, name, fmt, force, shift):
-    """Extracts subtitles in selected time range and outputs in desired file format
+    @classmethod
+    def load_subtitiles(cls, file) -> list[Subs]:
+        """Read JSON from file."""
 
-    source (str): youtube subtitle JSON file
-    t1 (float): left time bracket
-    t2 (float): right time bracket
-    name (str): override output file name
-    fmt (str): output subtitle format
-    force (bool): overwrite output file?
-    shift (bool): shifts subtitle timestamps to the left
-    """
+        s = Path(file).absolute()
+        if not s.exists():
+            raise Exception("File not found")
+        if not s.suffix == ".json":
+            raise Exception("Incorrect file format")
 
-    t1 = utils.parse_time_input(t1)
-    t2 = utils.parse_time_input(t2)
-    # if any(lambda _: not isinstance(_, float), [t1, t2]) or t1 >= t2:
-    if t1 >= t2:
-        raise Exception("Incorrect time brackets provided")
+        with open(s) as file:
+            # subs = json.load(file)[0]
+            subs = json.load(file)
 
-    s = Path(source).absolute()
-    target = s.parent / f"{name or s.stem}_chunk_{int(t1)}_{int(t2)}.{fmt}"
-    subs = utils.load_subtitiles(s)
+        return subs
 
-    utils.check_existing_file(target, force=force)
-    utils.ensure_folder(target)
+    # def pull(self, video_id, output_file=None, force=False):
 
-    filtered = []
-    padding = None
+    def save(self, output_file, fmt=FMT_TXT, force=False) -> None:
+        """Export subs to file in preferred format."""
 
-    for record in subs:
-        end = record["start"] + record["duration"]
-        if record["start"] >= t1 and end < (t2 + record["duration"]):
-            if shift:
-                if padding is None:
-                    padding = record["start"]
-                record["start"] -= padding
-            filtered.append(record)
+        utils.check_existing_file(output_file, force=force)
+        utils.ensure_folder(output_file)
+        utils.write_to_file(output_file, self.format_subs(self.transcript, fmt))
 
-    formatter = utils.format_txt if fmt == FMT_TXT else utils.format_srt
-    utils.write_to_file(target, formatter(filtered))
+    def cut(self, t1, t2) -> Subs:
+        """Cuts subtitles in selected time range.
 
-    click.echo(f"Wrote to: {target}\nDone.")
+        t1 (float/int/str): left time bracket
+        t2 (float/int/str): right time bracket
+        """
 
+        filtered = []
+        t1 = utils.parse_time_value(t1)
+        t2 = utils.parse_time_value(t2)
 
-# Command group registration:
-@click.group
-def grp():
-    pass
+        if t1 >= t2:
+            raise Exception("Incorrect time brackets provided")
 
+        for record in self.transcript:
+            end = record["start"] + record["duration"]
+            if record["start"] >= t1 and end <= (t2 + record["duration"]):
+                filtered.append(record)
 
-grp.add_command(pull)
-grp.add_command(convert)
-grp.add_command(chunk)
+        return Subs(transcript=filtered)
+
+    def shift_left(self):
+        """Shifts transcript timestamps to the left."""
+
+        if not self.transcript:
+            raise Exception("Empty transcript")
+
+        offset = self.transcript[0]["start"]
+
+        for record in self.transcript:
+            record["start"] -= offset
+
+    def derive_chunk_filename(self, t1, t2, fmt, target_file=None):
+        """Generate filename for subtitle chunk.
+
+        t1 (str): left time bracket
+        t2 (str): right time bracket
+        fmt (str): target format
+        target_file (Path, optional): Override target file. Defaults to None.
+        """
+
+        if target_file:
+            target_file = Path(target_file).absolute()
+
+        if not target_file:
+            tail = f"chunk_{float(t1)}_{float(t2)}.{fmt}"
+            if self.filepath:
+                target_file = self.filepath.parent / f"{self.filepath.stem}_{tail}"
+            elif self.video_id:
+                target_file = DEFAULT_DIR / Path(f"{self.video_id}_{tail}")
+            else:
+                target_file = DEFAULT_DIR / Path(f"{str(uuid.uuid4())[-4:]}_{tail}")
+
+        return target_file
+
+    @classmethod
+    def format_txt(cls, records):
+        """.txt formatter."""
+
+        text = ""
+        for record in records:
+            start = time.strftime(utils.TIME_FMT, time.gmtime(record["start"]))
+            end = time.strftime(
+                utils.TIME_FMT, time.gmtime(record["start"] + record["duration"])
+            )
+            text += f"[{start} - {end}] {record['text']}\n"
+        return text
+
+    @classmethod
+    def format_srt(cls, records):
+        """.srt formatter."""
+
+        text = ""
+        for i, record in enumerate(records):
+            start = utils.format_time_ms(record["start"])
+            end = utils.format_time_ms(record["start"] + record["duration"])
+            text += f"{i + 1}\n{start} --> {end}\n{record['text']}\n\n"
+        return text
+
+    @classmethod
+    def format_subs(cls, records, fmt):
+        """Formats subtitles from JSON to appropriate format.
+
+        records (list): subtitles in JSON format
+        fmt (str): prefered output format
+        """
+
+        if fmt == FMT_JSON:
+            return json.dumps(records)
+        elif fmt == FMT_TXT:
+            return cls.format_txt(records)
+        elif fmt == FMT_SRT:
+            return cls.format_srt(records)
+        else:
+            raise Exception(f"Unsupported format selected ({fmt})")
