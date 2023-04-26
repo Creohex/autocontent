@@ -1,9 +1,9 @@
-#!/Users/creohex/github/autocontent/.venv/bin/python
+#!python3
+# ^ poetry-generated venv implied
 
-import click
-from autocontent import groups
+
+from autocontent import multi_group
 
 
 if __name__ == "__main__":
-    multi_group = click.CommandCollection(sources=groups)
     multi_group()
