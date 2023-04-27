@@ -1,69 +1,69 @@
-from pathlib import Path
+from __future__ import annotations
+from __future__ import unicode_literals
 
-import click
+import json
+import re
+import uuid
+from abc import ABC, abstractmethod, abstractclassmethod
+from pathlib import Path
+from pprint import pprint as pp
+from urllib3.util import parse_url
+
 import moviepy.editor
+import pytube
+import youtube_dl
 from moviepy.editor import VideoFileClip, concatenate_videoclips, TextClip
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+from pytube import exceptions as pytube_exc, YouTube
+from pytube.cli import on_progress
+from yt_dlp import YoutubeDL as ytdlp
 
 from . import utils
 
 
-# TODO: clip video parts
-#       apply subs (stylize?)
-#       remove quiet parts
+DEBUG = False
+"""Debug flag."""
 
+VIDEO_URL_BASE = "https://youtu.be/"
+"""YouTube base URL."""
 
-@click.command()
-def test():
-    video_file = Path(".").parent / "sources" / "v1.mp4"
-    video = VideoFileClip(str(video_file)).subclip(15, 20)
+VIDEO_ID_PATTERN = r"[0-9A-Za-z_-]{11}"
+"""YouTube video ID regex pattern."""
 
+FMT_MHTML = "mhtml"
+FMT_3GPP = "3gpp"
+FMT_WEBM = "webm"
+FMT_MP4 = "mp4"
+FORMATS_VID = [FMT_MP4, FMT_MHTML, FMT_3GPP, FMT_WEBM]
+"""Video formats."""
 
-@click.command()
-@click.option("-s", "--source", required=True, type=str, help="Video file path")
-@click.option(
-    "-a", "--t1", required=True, help="left time bracket in seconds or hh:mm:ss"
-)
-@click.option(
-    "-b", "--t2", required=True, help="right time bracket in seconds or hh:mm:ss"
-)
-@click.option(
-    "-o", "output", required=False, type=str, default="", help="output clip file path"
-)
-@click.option(
-    "--strip_sound",
-    is_flag=True,
-    required=False,
-    show_default=True,
-    default=False,
-    help="strips audio from the resulting clip",
-)
-@click.option(
-    "-f",
-    "--force",
-    is_flag=True,
-    show_default=True,
-    default=False,
-    help="override target file if exists?",
-)
-def clip(source, t1, t2, output, strip_sound, force):
-    """Cuts a clip from provided video file."""
+RESOLUTION_144 = "144p"
+RESOLUTION_240 = "240p"
+RESOLUTION_360 = "360p"
+RESOLUTION_480 = "480p"
+RESOLUTION_720 = "720p"
+RESOLUTION_1080 = "1080p"
+RESOLUTIONS = [
+    RESOLUTION_144,
+    RESOLUTION_240,
+    RESOLUTION_360,
+    RESOLUTION_480,
+    RESOLUTION_720,
+    RESOLUTION_1080,
+]
+RESOLUTION_MAP = {r: i for i, r in enumerate(RESOLUTIONS)}
+"""Video resolutions."""
 
-    utils.clip_video(
-        source,
-        t1,
-        t2,
-        target_file=output,
-        strip_sound=strip_sound,
-        force=force,
-    )
+AUDIO_CODEC_MP4 = "mp4a.40.2"
+AUDIO_CODEC_OPUS = "opus"
+AUDIO_CODECS = [AUDIO_CODEC_MP4, AUDIO_CODEC_OPUS]
+"""Audio codecs."""
 
+MIME_TYPE_3GPP = "video/" + FMT_3GPP
+MIME_TYPE_WEBM = "video/" + FMT_WEBM
+MIME_TYPE_MP4 = "video/" + FMT_MP4
+MIME_TYPES = [MIME_TYPE_3GPP, MIME_TYPE_WEBM, MIME_TYPE_MP4]
+"""Video MIME types."""
 
-# Command group registration:
-@click.group
-def grp():
-    pass
-
-
-grp.add_command(test)
-grp.add_command(clip)
+DEFAULT_DIR = utils.ROOT_DIR / "sources/"
+"""Default directory for video file management."""
