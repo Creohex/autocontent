@@ -251,3 +251,140 @@ class YtDlpImporter(VideoImporter):
 
         # FIXME: derive video filepath from ydl obj?
         return DEFAULT_DIR / f"{self.video_id}.{FMT_MP4}"
+
+
+class Video:
+    """Video model."""
+
+    # TODO: cycle through importers on fail?
+    importers = {
+        "pytube": PytubeImporter,
+        "youtube-dl": YoutubeDlImporter,
+        "yt-dlp": YtDlpImporter,
+    }
+    default_importer = YtDlpImporter
+
+    def __init__(
+        self,
+        filepath: str = None,
+        video_id: str = None,
+        url: str = None,
+        download_kwargs: dict[str, str] | None = None,
+    ) -> Video:
+        if sum(map(bool, (filepath, video_id, url))) != 1:
+            raise Exception("Either filepath, video_id or url must be provided")
+
+        download_kwargs = download_kwargs or {}
+        self.filepath = None
+        self.video_id = None
+
+        if filepath:
+            self.filepath = self.check_video_file(filepath)
+            self.video_id = Path(self.filepath).stem
+            if not self.video_id:  # FIXME: ...
+                raise Exception("Invalid video ID")
+        elif video_id:
+            self.video_id = video_id
+            self.download_video(**download_kwargs)
+        elif url:
+            self.video_id = self.url_to_video_id(url)
+            self.download_video(**download_kwargs)
+
+    def download_video(
+        self,
+        max_resolution: str | None = RESOLUTION_360,
+        mime_type: str | None = MIME_TYPE_MP4,
+        exact_resolution: bool | None = True,
+        output_file: Path | str | None = None,
+        force: bool | None = False,
+    ) -> str:
+        """Download video and return its local filepath.
+
+        max_resolution (str | None, optional): _description_. Defaults to RESOLUTION_720.
+        mime_type (str | None, optional): _description_. Defaults to MIME_TYPE_MP4.
+        exact_resolution (bool | None, optional): _description_. Defaults to True.
+        output_file (Path | str | None, optional): _description_. Defaults to None.
+        force (bool | None, optional): _description_. Defaults to False.
+        """
+
+        # TODO: handle video parameters...
+        importer = self.default_importer(self.video_id)
+        self.filepath = importer.download()
+        print(">>>>>>>", self.filepath)
+
+    @classmethod
+    def video_id_to_url(cls, video_id: str) -> str:
+        """Validate and transform youtube video ID to valid url."""
+
+        return VIDEO_URL_BASE + cls.validate_video_id(video_id)
+
+    @staticmethod
+    def url_to_video_id(url: str) -> str:
+        try:
+            return re.search(VIDEO_ID_PATTERN, url).group()
+        except AttributeError:
+            raise Exception(f"Invalid video URL provided: {url}")
+
+    @staticmethod
+    def validate_video_id(video_id: str) -> str:
+        """Youtube video ID validator."""
+
+        if not re.match(f"^{VIDEO_ID_PATTERN}$", video_id):
+            raise Exception(f"Invalid video ID provided: {video_id}")
+
+        return video_id
+
+    @classmethod
+    def check_video_file(cls, filepath: str) -> str:
+        """Check if video file exists and in correct format."""
+
+        filepath = Path(filepath).absolute()
+        if not filepath.is_file():
+            raise Exception("Not a file!")
+        if not filepath.exists():
+            raise Exception("File not found")
+        if not cls.check_video_extension(filepath):
+            raise Exception(
+                f"Incorrect file format (supported: {','.join(FORMATS_VID)})"
+            )
+
+        return str(filepath)
+
+    @classmethod
+    def check_video_extension(cls, file: str) -> bool:
+        """Checks if provided video file type is supported."""
+
+        return Path(file).suffix[1:] in FORMATS_VID
+
+    def clip(
+        self,
+        t1: str | int | float,
+        t2: str | int | float,
+        target_file: Path | str | None = None,
+        strip_sound: bool | None = False,
+        force: bool | None = False,
+    ) -> Video:
+        """Cut clip from a video file."""
+
+        t1 = utils.parse_time_value(t1)
+        t2 = utils.parse_time_value(t2)
+        if t1 >= t2:
+            raise Exception(f"Incorrect time range provided ({t1} - {t2})")
+
+        # TODO: use mime type (clip format), derive video_id in case it's None
+        video_id = self.video_id if self.video_id else utils.unique_id()
+        target_file = (
+            Path(target_file)
+            if target_file
+            else DEFAULT_DIR / f"{video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
+        )
+        utils.check_existing_file(target_file, force=force)
+        utils.ensure_folder(target_file)
+
+        with VideoFileClip(self.filepath) as vid:
+            subclip = vid.subclip(t1, t2)
+            if strip_sound:
+                subclip = subclip.without_audio()
+            subclip.write_videofile(str(target_file))
+
+        return Video(filepath=str(target_file))
