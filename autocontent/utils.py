@@ -1,4 +1,5 @@
 import re
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -9,6 +10,12 @@ TIME_FMT = r"%H:%M:%S"
 
 ROOT_DIR = Path(__file__).absolute().parent.parent
 """Project root directory."""
+
+
+def unique_id():
+    """Generate unique ID."""
+
+    return str(uuid.uuid4())[-4:]
 
 
 def format_time_ms(seconds: float) -> str:
@@ -36,9 +43,9 @@ def ensure_folder(file_path: Path | str) -> None:
 
 
 def check_existing_file(file: Path, force: bool | None = False) -> None:
-    """Checks if file exists and deletes it when forced to."""
+    """Check if file exist and deletes it when forced to."""
 
-    if file.is_file() and file.exists():
+    if file.exists():
         if force:
             file.unlink()
         else:

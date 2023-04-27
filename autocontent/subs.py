@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-import uuid
 from pathlib import Path
-
-# from typing import e
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -142,7 +139,7 @@ class Subs:
             elif self.video_id:
                 target_file = DEFAULT_DIR / Path(f"{self.video_id}_{tail}")
             else:
-                target_file = DEFAULT_DIR / Path(f"{str(uuid.uuid4())[-4:]}_{tail}")
+                target_file = DEFAULT_DIR / Path(f"{utils.unique_id}_{tail}")
 
         return target_file
 
