@@ -43,7 +43,11 @@ def ensure_folder(file_path: Path | str) -> None:
 
 
 def check_existing_file(file: Path, force: bool | None = False) -> None:
-    """Check if file exist and deletes it when forced to."""
+    """Check if file exist and deletes it when forced to.
+
+    - file (Path): File location
+    - force (bool | None, optional (False)): delete file if True
+    """
 
     if file.exists():
         if force:
@@ -55,8 +59,8 @@ def check_existing_file(file: Path, force: bool | None = False) -> None:
 def write_to_file(file: Path | str, contents: str) -> None:
     """Writes contents to file.
 
-    file (Path):
-    contents (): _description_
+    - file (Path | str): File location
+    - contents (str): File contents
     """
 
     file = Path(file)
@@ -73,7 +77,10 @@ def write_to_file(file: Path | str, contents: str) -> None:
 
 
 def parse_time_value(predicate: int | float | str) -> float:
-    """Parses time input in various forms."""
+    """Parses time input in various forms and return in float type.
+
+    - predicate (int | float | str): input value
+    """
 
     match predicate:
         case float():
@@ -96,3 +103,19 @@ def parse_time_value(predicate: int | float | str) -> float:
             raise Exception(
                 f"Invalid time argument type ({predicate}, {type(predicate)})"
             )
+
+
+def dialog_confirm(message: str | None = "Confirm action?") -> bool:
+    """Command line confirmation dialogue."""
+
+    reply = "-"
+    positive_replies = ["y", "yes"]
+    negative_replies = ["n", "no"]
+
+    while True:
+        print(f"{message} 'y/n': ", end="")
+        reply = input().lower()
+        if reply in positive_replies:
+            return True
+        elif reply in negative_replies:
+            return False
