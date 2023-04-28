@@ -942,6 +942,23 @@ htmlsoup = ["BeautifulSoup4"]
 source = ["Cython (>=0.29.7)"]
 
 [[package]]
+name = "mock"
+version = "5.0.2"
+description = "Rolling backport of unittest.mock for all Pythons"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "mock-5.0.2-py3-none-any.whl", hash = "sha256:0e0bc5ba78b8db3667ad636d964eb963dc97a59f04c6f6214c5f0e4a8f726c56"},
+    {file = "mock-5.0.2.tar.gz", hash = "sha256:06f18d7d65b44428202b145a9a36e99c2ee00d1eb992df0caf881d4664377891"},
+]
+
+[package.extras]
+build = ["blurb", "twine", "wheel"]
+docs = ["sphinx"]
+test = ["pytest", "pytest-cov"]
+
+[[package]]
 name = "moviepy"
 version = "1.0.3"
 description = "Video editing with Python"
@@ -1770,4 +1787,4 @@ websockets = "*"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "55d65f6928fae8ae09d0ca6ef94f287a6ccf24d4a97a05f330030a59e3172846"
+content-hash = "9af535f1c0571e0a4417bac2c2e9c25d43453ed6df9fb883c08031775787ce5e"
