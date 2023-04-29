@@ -62,9 +62,8 @@ def convert(source, fmt, force):
     source = Path(source).absolute()
     target = source.parent / f"{source.stem}.{fmt}"
 
-    click.echo(f"Source file: {source}\nTarget file: {target}")
     Subs(filepath=source).save(target, fmt=fmt, force=force)
-    click.echo("Done.")
+    click.echo(f"Saved to: {target}")
 
 
 @click.command(help="Cuts subtitles into a chunk with possible time shift")
