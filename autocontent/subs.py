@@ -78,7 +78,8 @@ class Subs:
     ) -> None:
         """Export subs to file in preferred format."""
 
-        utils.check_existing_file(output_file, force=force)
+        fmt = fmt or FMT_TXT
+        utils.check_existing_file(output_file, force=False if force is None else force)
         utils.ensure_folder(output_file)
         utils.write_to_file(output_file, self.format_subs(self.transcript, fmt))
 
