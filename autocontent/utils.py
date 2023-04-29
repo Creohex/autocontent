@@ -37,20 +37,21 @@ def ensure_folder(file_path: Path | str) -> None:
 
     if not isinstance(file_path, (str, Path)):
         raise Exception("Incorrect file_path: 'Path' or 'str' expected")
-    if isinstance(file_path, str):
-        file_path = Path(file_path)
+    file_path = Path(file_path)
 
     for directory in reversed(list(file_path.parents)):
         if not directory.exists():
             directory.mkdir()
 
 
-def check_existing_file(file: Path, force: bool | None = False) -> None:
+def check_existing_file(file: Path, force: bool = False) -> None:
     """Check if file exist and deletes it when forced to.
 
     - file (Path): File location
     - force (bool | None, optional (False)): delete file if True
     """
+
+    force = False if force is None else force
 
     if file.exists():
         if force:
@@ -108,9 +109,10 @@ def parse_time_value(predicate: int | float | str) -> float:
             )
 
 
-def dialog_confirm(message: str | None = "Confirm action?") -> bool:
+def dialog_confirm(message: str | None = None) -> bool:
     """Command line confirmation dialogue."""
 
+    messsage = message or "Confirm action?"
     reply = "-"
     positive_replies = ["y", "yes"]
     negative_replies = ["n", "no"]
