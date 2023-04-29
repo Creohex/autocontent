@@ -246,7 +246,6 @@ class YtDlpImporter(VideoImporter):
 
         # TODO: add progress hooks
 
-        additional_options = additional_options or {}
         cmpr = "==" if exact else "<="
         res_str = f"[height{cmpr}{height}]"
 
@@ -265,7 +264,7 @@ class YtDlpImporter(VideoImporter):
             # "overwrites": True,  # overwrite file(s) if they already exist (handle 'force' here?)
             # "simulate": True,  # for testing?
         }
-        options.update(additional_options)
+        options.update(additional_options or {})
 
         return options
 
@@ -524,6 +523,7 @@ class Video:
     ) -> Video:
         """Cut clip from a video file."""
 
+        force = False if force is None else force
         t1 = utils.parse_time_value(t1)
         t2 = utils.parse_time_value(t2)
         if t1 >= t2:
