@@ -112,7 +112,7 @@ def parse_time_value(predicate: int | float | str) -> float:
 def dialog_confirm(message: str | None = None) -> bool:
     """Command line confirmation dialogue."""
 
-    messsage = message or "Confirm action?"
+    message = message or "Confirm action?"
     reply = "-"
     positive_replies = ["y", "yes"]
     negative_replies = ["n", "no"]
