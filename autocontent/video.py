@@ -18,11 +18,10 @@ from pytube import exceptions as pytube_exc, YouTube
 from pytube.cli import on_progress
 from yt_dlp import YoutubeDL as ytdlp
 
-from . import utils
 
+from . import exceptions, utils
+from .utils import DEBUG
 
-DEBUG = False
-"""Debug flag."""
 
 VIDEO_URL_BASE = "https://youtu.be/"
 """YouTube base URL."""

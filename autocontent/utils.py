@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
+DEBUG = False
+"""Global debug flag."""
+
 TIME_FMT = r"%H:%M:%S"
 # TIME_FMT_MS = r"%H:%M:%S,%f"
 """Time format strings."""
