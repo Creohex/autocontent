@@ -17,7 +17,7 @@ from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pytube import exceptions as pytube_exc, YouTube
 from pytube.cli import on_progress
 from yt_dlp import YoutubeDL as ytdlp
-
+from yt_dlp.utils import DownloadError
 
 from . import exceptions, utils
 from .utils import DEBUG
@@ -92,9 +92,45 @@ class VideoImporter(ABC):
 
         return DEFAULT_DIR / f"{self.video_id}.{fmt}"
 
+    def validate_filename(self, filename: Path, fmt: str | None = None):
+        """Validates/fixes video filename.
+
+        - filename (_type_): suggested video filename
+        - fmt (str | None, optional (None)): video format
+        """
+
+        fmt = fmt or self.DEFAULT_FORMAT
+
+        if not filename.suffix:
+            filename = Path(f"filename.{fmt}")
+        name = filename.name.split(".")[0]
+        if not re.match(r"^[\d\w\-_]{1,20}$", name):
+            raise exceptions.InvalidFileName(msg=f"Invalid name for video file: {name}")
+
+        return filename
+
+    @staticmethod
+    def resolution_to_height(res: str) -> int:
+        """Transform resolution to video frame height.
+
+        - res (str): resolution in "XXXp" format
+        """
+
+        return int(res.strip("p"))
+
+    @staticmethod
+    def mime_type_to_format(mime_type: str) -> str:
+        """Transform MIME type to video format."""
+
+        return mime_type.split("/")[-1]
+
     @abstractmethod
     def download(self):
         raise NotImplementedError()
+
+    @abstractmethod
+    def download_audio(self):
+        raise NotImplementedError
 
 
 class PytubeImporter(VideoImporter):
@@ -153,6 +189,7 @@ class PytubeImporter(VideoImporter):
 class YoutubeDlImporter(VideoImporter):
     """Youtube video importer via youtube-dl."""
 
+    # TODO: download speed appears to be very slow, appears to be better in yt-dlp
     def download(
         self,
         max_resolution: str | None = RESOLUTION_360,
@@ -165,63 +202,103 @@ class YoutubeDlImporter(VideoImporter):
             if d["status"] == "finished":
                 print("Done downloading, now converting ...")
 
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            ],
-            "progress_hooks": [my_hook],
-        }
-        print(">>> ", self.url)
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([self.url])
+        # ydl_opts = {
+        #     "format": "bestaudio/best",
+        #     "postprocessors": [
+        #         {
+        #             "key": "FFmpegExtractAudio",
+        #             "preferredcodec": "mp3",
+        #             "preferredquality": "192",
+        #         }
+        #     ],
+        #     "progress_hooks": [my_hook],
+        # }
+        # with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        #     ydl.download([self.url])
+
+        raise NotImplementedError()
 
 
 class YtDlpImporter(VideoImporter):
     """Youtube cideo importer via yt-dlp"""
 
-    @staticmethod
-    def construct_options(
-        format_id: str,
-        name: str | None = None,
-    ) -> dict:
-        """Prepares options dictionary for ytdlp context."""
+    DEFAULT_RES_HEIGHT = 360
+    DEFAULT_MIME_TYPE = MIME_TYPE_MP4
+    DEFAULT_FORMAT = FMT_MP4
 
-        # TODO: parametrize destination folder path as well?
-        return {
-            "format": format_id,
-            "outtmpl": str(
-                DEFAULT_DIR / f"{(Path(name).stem if name else '%(id)s')}.%(ext)s"
-            ),
+    @classmethod
+    def construct_options(
+        cls,
+        height: int,
+        exact: bool,
+        fmt: str,
+        output_file: str,
+        additional_options: dict,
+    ) -> dict:
+        """Prepares options dictionary for ytdlp context.
+
+        - height (int): resolution in horizontal line count
+        - exact (bool): attempt to download ^this specific resolution, not closest to it
+        - fmt (str): video format
+        - output_file (str): output location
+        - additional_options (dict): extra YoutubeDL options
+        """
+
+        # TODO: add progress hooks
+
+        additional_options = additional_options or {}
+        cmpr = "==" if exact else "<="
+        res_str = f"[height{cmpr}{height}]"
+
+        options = {
+            # "format": format_id,  # no longer neeeded?
+            # "outtmpl": f"{filepath}.%(ext)s",  # old
+            "format": f"bestvideo{res_str}+bestaudio/best{res_str}",
+            "merge_output_format": fmt or cls.DEFAULT_FORMAT,
+            "outtmpl": str(output_file),
             "noplaylist": True,
+            "forcejson": False,
+            "quiet": True,  # suppress downloading messages
+            # "postprocessor_hooks": ... # video postprocessing hooks
+            # "progress_hooks": [...] # video download progress hooks
+            "writeinfojson": True,
+            # "overwrites": True,  # overwrite file(s) if they already exist (handle 'force' here?)
+            # "simulate": True,  # for testing?
         }
+        options.update(additional_options)
+
+        return options
 
     def extract_info(self):
         """Fetches information JSON for video."""
 
         with ytdlp() as ydl:
-            return ydl.extract_info(self.url, download=False)
+            try:
+                return ydl.extract_info(self.url, download=False)
+            except DownloadError:
+                raise exceptions.VideoUnavailable()
 
-    def appropriate_format(self):
-        """..."""
-
-        # TODO: parametrize video params
-        # TODO: implement video/audio merge for higher-resolution streams
+    def appropriate_format(
+        self,
+        res_height: int,
+        exact_resolution: bool,
+        formats: list[int],
+        with_audio: bool,
+    ):
+        """Searches for best available video format ID, taking options into account."""
 
         info = self.extract_info()
-        resolutions = ["640x360", "426x240"]
-        exts = [FMT_MP4, FMT_WEBM]
-        with_audio = True
         format_ids = []
 
         for f in info["formats"]:
             if (
-                f["resolution"] in resolutions
-                and f["ext"] in exts
+                # f["resolution"] in resolutions
+                # (
+                #     (f["height"] == res_height)
+                #     if exact_resolution
+                #     else (f["height"] <= res_height)
+                # )
+                f["ext"] in formats
                 and (
                     ("audio_channels" in f and f["audio_channels"] != "none")
                     if with_audio
@@ -242,14 +319,74 @@ class YtDlpImporter(VideoImporter):
 
         return sorted(format_ids, key=lambda f: -int(f))[0]
 
-    def download(self):
-        options = self.construct_options(self.appropriate_format())
+    def download_audio(self):
+        # TODO: ...
+
+        # ydl_opts = {
+        #     'format': 'bestaudio/best',
+        #     'extractaudio': True,
+        #     'audioformat': 'mp3',
+        #     'postprocessors': [{
+        #         'key': 'FFmpegExtractAudio',
+        #         'preferredcodec': 'mp3',
+        #         'preferredquality': '192',
+        #     }],
+        # }
+
+        raise NotImplementedError
+
+    def download(
+        self,
+        max_resolution: str | None = RESOLUTION_360,
+        mime_type: str | None = MIME_TYPE_MP4,
+        exact_resolution: bool | None = False,
+        with_audio: bool | None = True,
+        output_file: Path | str | None = None,
+        force: bool | None = False,
+        additional_options: dict(str, str) | None = None,
+    ):
+        """Download from best video stream according to provided parameters.
+
+        - max_resolution (str | None, optional (RESOLUTION_360)): maximum resolution
+        - mime_type (str | None, optional (MIME_TYPE_MP4)): video format
+        - exact_resolution (bool | None, optional (False)): aim for specific resolution
+        - with_audio (bool | None, optional (True)): include audio stream?
+        - output_file (Path | str | None, optional (None)): override output location
+        - force (bool | None (False)): overwrite flag
+        - additional options (dict): extra YoutubeDL options
+        """
+
+        # TODO: handle/check output path here (verity/add parent/name/suffix)
+        max_resolution = max_resolution or RESOLUTION_360
+        res_height = self.resolution_to_height(max_resolution)
+        mime_type = mime_type or MIME_TYPE_MP4
+        fmt = self.mime_type_to_format(mime_type)
+        exact_resolution = False if exact_resolution is None else exact_resolution
+        with_audio = True if with_audio is None else with_audio
+        force = False if force is None else force
+
+        output_file = self.validate_filename(
+            Path(output_file) if output_file else self.default_filepath(fmt)
+        )
+        utils.ensure_folder(output_file)
+        # FIXME: not needed? 'overwrites' would work better perhaps?
+        utils.check_existing_file(output_file, force=force)
+
+        options = self.construct_options(
+            height=res_height,
+            exact=exact_resolution,
+            fmt=fmt,
+            output_file=output_file,
+            additional_options=additional_options or {},
+        )
 
         with ytdlp(options) as ydl:
-            ydl.download(self.url)
+            try:
+                ydl.download(self.url)
+            except DownloadError as e:
+                raise exceptions.VideoUnavailable(str(e))
 
-        # FIXME: derive video filepath from ydl obj?
-        return DEFAULT_DIR / f"{self.video_id}.{FMT_MP4}"
+        return output_file
 
 
 class Video:
@@ -293,23 +430,45 @@ class Video:
         self,
         max_resolution: str | None = RESOLUTION_360,
         mime_type: str | None = MIME_TYPE_MP4,
-        exact_resolution: bool | None = True,
+        exact_resolution: bool | None = False,
         output_file: Path | str | None = None,
         force: bool | None = False,
-    ) -> str:
-        """Download video and return its local filepath.
+        additional_options: dict(str, str) | None = None,
+    ) -> None:
+        """Download video.
 
-        max_resolution (str | None, optional): _description_. Defaults to RESOLUTION_720.
-        mime_type (str | None, optional): _description_. Defaults to MIME_TYPE_MP4.
-        exact_resolution (bool | None, optional): _description_. Defaults to True.
-        output_file (Path | str | None, optional): _description_. Defaults to None.
-        force (bool | None, optional): _description_. Defaults to False.
+        - max_resolution (str | None, optional (RESOLUTION_360)): maximum resolution
+            to probe for
+        - mime_type (str | None, optional (MIME_TYPE_MP4)): Video format
+        - exact_resolution (bool | None, optional (False)): attempt to
+            download exclusively provided resolution or none at all
+        - output_file (Path | str | None, optional (None)): override output location
+        - force (bool | None, optional (False)): overwrite if exists
+        - additional_options (dict): additional downloader options
         """
 
-        # TODO: handle video parameters...
-        importer = self.default_importer(self.video_id)
-        self.filepath = importer.download()
-        print(">>>>>>>", self.filepath)
+        self.filepath = self.default_importer(self.video_id).download(
+            max_resolution=max_resolution or RESOLUTION_360,
+            mime_type=mime_type or MIME_TYPE_MP4,
+            exact_resolution=False if exact_resolution is None else exact_resolution,
+            output_file=output_file,
+            force=False if force is None else force,
+            additional_options=additional_options or {},
+        )
+
+    def download_audio(
+        self,
+        output_file: Path | str | None = None,
+        force: bool | None = False,
+    ) -> None:
+        """Download audio track.
+
+        - output_file (Path | str | None, optional (None)): override output location.
+        - force (bool | None, optional (False)): overwrite if exists.
+        """
+
+        # TODO: ...
+        raise NotImplementedError()
 
     @classmethod
     def video_id_to_url(cls, video_id: str) -> str:
