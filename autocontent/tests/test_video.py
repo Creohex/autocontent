@@ -3,25 +3,20 @@
 from __future__ import annotations
 
 import functools
+import json
 import pytest
 from mock import MagicMock, patch
 from pathlib import Path
 
 from .. import exceptions, utils, video
-from ..video import Video
+from ..video import Video, YtDlpImporter
 
 
 video.DEFAULT_DIR = utils.ROOT_DIR / "test_videos/"
 """Override default directgitory for video files for isolation purposes."""
 
-TEST_VIDEO_ID = "EngW7tLk6R8"
+TEST_VIDEO_ID = "EngW7tLk6R8"  # 5-second
 """Small youtube video ID perfect for use in tests."""
-
-# TODO: extensive tests with parameters, alternative naming, etc:
-#       simple test
-#       different parameter combinations
-#       audio only
-#       high res (audio merge)
 
 
 # --- Tooling: ---
@@ -33,6 +28,13 @@ def use_dir():
     print()
     yield True
     cleanup()
+
+
+@pytest.fixture()
+def video_debug_json_opts():
+    return {
+        "writeinfojson": True,
+    }
 
 
 def cleanup():
@@ -60,10 +62,27 @@ def prepare():
 
 
 class VideoMock(Video):
+    """
+    Video mock class, with altered initialization and
+    additional helper methods for testing purposes.
+    """
+
     def __init__(self, video_id):
         self.video_id = video_id
 
+    def info_json(self):
+        if not self.filepath:
+            raise Exception("File hasn't been downloaded yet!")
+        fp = Path(self.filepath)
+        info_json_path = fp.parent / f"{fp.name.split('.')[0]}.info.json"
 
+        with open(info_json_path, "r") as f:
+            info_json = json.loads(f.read())
+
+        return info_json
+
+
+# TODO: audio-only case
 # --- Cases: ---
 def test_download_video(use_dir):
     vid = Video(video_id=TEST_VIDEO_ID)
@@ -71,41 +90,59 @@ def test_download_video(use_dir):
 
 
 @pytest.mark.parametrize(
-    ("invalid_video_id", "expected"),
+    ("invalid_video_id", "max_resolution", "expected"),
     [
-        ("", Exception),
-        ("gibberish", Exception),
-        (123, TypeError),
-        ("0" * 11, exceptions.VideoUnavailable),
+        ("", None, Exception),
+        ("gibberish", None, Exception),
+        (123, None, TypeError),
+        ("0" * 11, None, exceptions.VideoUnavailable),
+        (TEST_VIDEO_ID, "145p", Exception),
     ],
 )
-def test_download_video_negative(invalid_video_id, expected):
+def test_download_video_negative(use_dir, invalid_video_id, max_resolution, expected):
     with pytest.raises(expected):
-        Video(video_id=invalid_video_id)
+        vid = VideoMock(video_id=invalid_video_id)
+        vid.download_video(max_resolution=max_resolution)
 
 
 @pytest.mark.parametrize(
     ("max_resolution", "mime_type", "exact_resolution", "output_file"),
     [
-        # (None, None, None, None),
-        (None, None, None, video.DEFAULT_DIR / "specific.mp4"),
         (video.RESOLUTION_144, None, False, video.DEFAULT_DIR / "specific.mp4"),
+        (video.RESOLUTION_144, None, False, None),
+        # (video.RESOLUTION_360, video.MIME_TYPE_WEBM, False, None),
+        (video.RESOLUTION_240, None, True, None),
     ],
 )
 def test_download_video_combinations(
-    use_dir, max_resolution, mime_type, exact_resolution, output_file
+    use_dir,
+    video_debug_json_opts,
+    max_resolution,
+    mime_type,
+    exact_resolution,
+    output_file,
 ):
-    # TODO: pass 'writeinfojson', load it and make assertions against args
-    # other options: quiet,
+    """Test video download parameter compliance."""
+
     vid = VideoMock(video_id=TEST_VIDEO_ID)
     vid.download_video(
         max_resolution=max_resolution,
         mime_type=mime_type,
         exact_resolution=exact_resolution,
         output_file=output_file,
+        force=False,
+        additional_options=video_debug_json_opts,
     )
 
-    # asserts..
-    assert vid.filepath == output_file
+    info = vid.info_json()
+
+    assert vid.video_id == info["id"]
     assert Path(vid.filepath).is_file()
-    # import pdb; pdb.set_trace()
+    assert info["acodec"] == video.AUDIO_CODEC_MP4
+    assert info["ext"] == YtDlpImporter.mime_type_to_format(
+        mime_type or video.MIME_TYPE_MP4
+    )
+    assert info["height"] == YtDlpImporter.resolution_to_height(max_resolution)
+
+    if output_file:
+        assert vid.filepath == output_file
