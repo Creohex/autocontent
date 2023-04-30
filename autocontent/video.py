@@ -246,7 +246,7 @@ class YtDlpImporter(VideoImporter):
 
         # TODO: add progress hooks
 
-        cmpr = "==" if exact else "<="
+        cmpr = "=" if exact else "<="
         res_str = f"[height{cmpr}{height}]"
 
         options = {
@@ -414,7 +414,7 @@ class Video:
         self.video_id = None
 
         if filepath:
-            self.filepath = self.check_video_file(filepath)
+            self.filepath = Path(self.check_video_file(filepath))
             self.video_id = Path(self.filepath).stem
             if not self.video_id:  # FIXME: ...
                 raise Exception("Invalid video ID")
