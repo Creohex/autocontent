@@ -53,10 +53,16 @@ RESOLUTIONS = [
 RESOLUTION_MAP = {r: i for i, r in enumerate(RESOLUTIONS)}
 """Video resolutions."""
 
-AUDIO_CODEC_MP4 = "mp4a.40.2"
+AUDIO_CODEC_MP4A = "mp4a.40.2"
 AUDIO_CODEC_OPUS = "opus"
-AUDIO_CODECS = [AUDIO_CODEC_MP4, AUDIO_CODEC_OPUS]
+AUDIO_CODECS = [AUDIO_CODEC_MP4A, AUDIO_CODEC_OPUS]
 """Audio codecs."""
+
+AUDIO_BITRATE_DEFAULT = 192
+"""Default audio bitrate value."""
+
+AUDIO_FMT_MP3 = "mp3"
+"""Audio format constants."""
 
 MIME_TYPE_3GPP = "video/" + FMT_3GPP
 MIME_TYPE_WEBM = "video/" + FMT_WEBM
@@ -70,6 +76,10 @@ DEFAULT_DIR = utils.ROOT_DIR / "sources/"
 
 class VideoImporter(ABC):
     """Youtube video importer base class."""
+
+    DEFAULT_RES_HEIGHT = 360
+    DEFAULT_MIME_TYPE = MIME_TYPE_MP4
+    DEFAULT_FORMAT = FMT_MP4
 
     @property
     def success(self):
@@ -165,7 +175,7 @@ class PytubeImporter(VideoImporter):
             stream
             for stream in vid.streams
             if stream.resolution == max_resolution
-            and stream.audio_codec == AUDIO_CODEC_MP4
+            and stream.audio_codec == AUDIO_CODEC_MP4A
             and stream.mime_type == mime_type
             and stream.type == "video"
             # and stream.is_progressive
@@ -222,10 +232,6 @@ class YoutubeDlImporter(VideoImporter):
 class YtDlpImporter(VideoImporter):
     """Youtube cideo importer via yt-dlp"""
 
-    DEFAULT_RES_HEIGHT = 360
-    DEFAULT_MIME_TYPE = MIME_TYPE_MP4
-    DEFAULT_FORMAT = FMT_MP4
-
     @classmethod
     def construct_options(
         cls,
@@ -260,7 +266,7 @@ class YtDlpImporter(VideoImporter):
             "quiet": True,  # suppress downloading messages
             # "postprocessor_hooks": ... # video postprocessing hooks
             # "progress_hooks": [...] # video download progress hooks
-            "writeinfojson": True,
+            # "writeinfojson": True,
             # "overwrites": True,  # overwrite file(s) if they already exist (handle 'force' here?)
             # "simulate": True,  # for testing?
         }
@@ -303,7 +309,7 @@ class YtDlpImporter(VideoImporter):
                     if with_audio
                     else True
                 )
-                and f["acodec"] == AUDIO_CODEC_MP4
+                and f["acodec"] == AUDIO_CODEC_MP4A
                 and re.match(r"^\d+$", f["format_id"])
             ):
                 pp(f"Found appropriate format ID: {f['format']}")
@@ -318,21 +324,48 @@ class YtDlpImporter(VideoImporter):
 
         return sorted(format_ids, key=lambda f: -int(f))[0]
 
-    def download_audio(self):
-        # TODO: ...
+    def download_audio(
+        self,
+        output_file: Path | str | None = None,
+        bitrate: int | None = None,
+        force: bool | None = None,
+        additional_options: dict(str, str) | None = None,
+    ):
+        bitrate = str(bitrate or AUDIO_BITRATE_DEFAULT)
+        force = False if force is None else force
 
-        # ydl_opts = {
-        #     'format': 'bestaudio/best',
-        #     'extractaudio': True,
-        #     'audioformat': 'mp3',
-        #     'postprocessors': [{
-        #         'key': 'FFmpegExtractAudio',
-        #         'preferredcodec': 'mp3',
-        #         'preferredquality': '192',
-        #     }],
-        # }
+        output_file = self.validate_filename(
+            Path(output_file)
+            if output_file
+            else self.default_filepath(fmt=AUDIO_FMT_MP3),
+            fmt=AUDIO_FMT_MP3,
+        )
+        utils.ensure_folder(output_file)
+        utils.check_existing_file(output_file, force=force)
 
-        raise NotImplementedError
+        options = {
+            "format": "bestaudio/best",
+            "extractaudio": True,
+            "audioformat": AUDIO_FMT_MP3,
+            # FIXME: outtmpl: for some reason extension is duplicated otherwise
+            "outtmpl": str(output_file.parent / output_file.stem),
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": AUDIO_FMT_MP3,
+                    "preferredquality": bitrate,
+                }
+            ],
+        }
+        options.update(additional_options or {})
+
+        with ytdlp(options) as ydl:
+            try:
+                ydl.download(self.url)
+            except DownloadError as e:
+                raise exceptions.VideoUnavailable(str(e))
+
+        return output_file
 
     def download(
         self,
@@ -458,7 +491,9 @@ class Video:
     def download_audio(
         self,
         output_file: Path | str | None = None,
+        bitrate: int | None = None,
         force: bool | None = False,
+        additional_options: dict(str, str) | None = None,
     ) -> None:
         """Download audio track.
 
@@ -466,8 +501,12 @@ class Video:
         - force (bool | None, optional (False)): overwrite if exists.
         """
 
-        # TODO: ...
-        raise NotImplementedError()
+        self.filepath = self.default_importer(self.video_id).download_audio(
+            output_file=output_file,
+            bitrate=bitrate,
+            force=force,
+            additional_options=additional_options,
+        )
 
     @classmethod
     def video_id_to_url(cls, video_id: str) -> str:
