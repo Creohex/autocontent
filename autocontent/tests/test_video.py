@@ -14,6 +14,7 @@ video.DEFAULT_DIR = utils.ROOT_DIR / "test_videos/"
 """Override default directgitory for video files for isolation purposes."""
 
 TEST_VIDEO_ID = "EngW7tLk6R8"  # 5-second
+TEST_VIDEO_ID_LONG = "0nTEfx44pws"  # 15-minute
 """Small youtube video ID perfect for use in tests."""
 
 
@@ -36,7 +37,7 @@ def use_dir():
 
 
 @pytest.fixture()
-def video_debug_json_opts():
+def debug_json_opts():
     return {
         "writeinfojson": True,
     }
@@ -130,7 +131,7 @@ def test_download_video_negative(use_dir, invalid_video_id, max_resolution, expe
 )
 def test_download_video_combinations(
     use_dir,
-    video_debug_json_opts,
+    debug_json_opts,
     max_resolution,
     mime_type,
     exact_resolution,
@@ -145,7 +146,7 @@ def test_download_video_combinations(
         exact_resolution=exact_resolution,
         output_file=output_file,
         force=False,
-        additional_options=video_debug_json_opts,
+        additional_options=debug_json_opts,
     )
 
     info = vid.info_json()
@@ -162,9 +163,9 @@ def test_download_video_combinations(
         assert vid.filepath == output_file
 
 
-def test_download_audio(use_dir, video_debug_json_opts):
-    vid = VideoMock(TEST_VIDEO_ID)
-    vid.download_audio(additional_options=video_debug_json_opts)
+def test_download_audio(use_dir, debug_json_opts):
+    vid = VideoMock(TEST_VIDEO_ID_LONG)
+    vid.download_audio(additional_options=debug_json_opts)
     info = vid.info_json()
 
     assert vid.filepath.is_file()
