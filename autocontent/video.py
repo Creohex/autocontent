@@ -84,7 +84,7 @@ class VideoImporter(ABC):
         self._downloader = None
 
         self.video_id = Video.validate_video_id(
-            video_id or Video.url_to_video_id(video_id)
+            video_id or Video.extract_video_id(video_id)
         )
         self.url = Video.video_id_to_url(self.video_id)
         self.filepath = None
@@ -398,14 +398,14 @@ class Video:
 
         if filepath:
             self.filepath = Path(self.check_video_file(filepath))
-            self.video_id = Path(self.filepath).stem
+            self.video_id = self.extract_video_id(self.filepath)
             if not self.video_id:  # FIXME: ...
                 raise Exception("Invalid video ID")
         elif video_id:
             self.video_id = video_id
             self.download_video(**download_kwargs)
         elif url:
-            self.video_id = self.url_to_video_id(url)
+            self.video_id = self.extract_video_id(url)
             self.download_video(**download_kwargs)
 
     def download_video(
@@ -467,11 +467,11 @@ class Video:
         return VIDEO_URL_BASE + cls.validate_video_id(video_id)
 
     @staticmethod
-    def url_to_video_id(url: str) -> str:
+    def extract_video_id(url: str) -> str:
         try:
             return re.search(VIDEO_ID_PATTERN, url).group()
         except AttributeError:
-            raise Exception(f"Invalid video URL provided: {url}")
+            raise Exception(f"Unable to derive video ID from string: {url}")
 
     @staticmethod
     def validate_video_id(video_id: str) -> str:
@@ -488,8 +488,6 @@ class Video:
 
         filepath = Path(filepath).absolute()
         if not filepath.is_file():
-            raise Exception("Not a file!")
-        if not filepath.exists():
             raise Exception("File not found")
         if not cls.check_video_extension(filepath):
             raise Exception(
@@ -508,7 +506,7 @@ class Video:
         self,
         t1: str | int | float,
         t2: str | int | float,
-        target_file: Path | str | None = None,
+        output_file: Path | str | None = None,
         strip_sound: bool | None = False,
         force: bool | None = False,
     ) -> Video:
@@ -520,23 +518,21 @@ class Video:
         if t1 >= t2:
             raise Exception(f"Incorrect time range provided ({t1} - {t2})")
 
-        # TODO: use mime type (clip format), derive video_id in case it's None
-        video_id = self.video_id if self.video_id else utils.unique_id()
-        target_file = (
-            Path(target_file)
-            if target_file
-            else DEFAULT_DIR / f"{video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
+        output_file = (
+            Path(output_file)
+            if output_file
+            else DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
         )
-        utils.check_existing_file(target_file, force=force)
-        utils.ensure_folder(target_file)
+        utils.check_existing_file(output_file, force=force)
+        utils.ensure_folder(output_file)
 
         with VideoFileClip(self.filepath) as vid:
             subclip = vid.subclip(t1, t2)
             if strip_sound:
                 subclip = subclip.without_audio()
-            subclip.write_videofile(str(target_file))
+            subclip.write_videofile(str(output_file))
 
-        return Video(filepath=str(target_file))
+        return Video(filepath=str(output_file))
 
     def modify_speed(self, factor: int | None = None):
         """..."""

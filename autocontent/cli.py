@@ -196,7 +196,7 @@ def clip(source, t1, t2, output, strip_sound, force):
     """Cuts a clip from provided video file."""
 
     video = Video(filepath=source)
-    vid = video.clip(t1, t2, target_file=output, strip_sound=strip_sound, force=force)
+    vid = video.clip(t1, t2, output_file=output, strip_sound=strip_sound, force=force)
     click.echo(f"Saved to {vid.filepath}")
 
 
@@ -209,9 +209,7 @@ def clip(source, t1, t2, output, strip_sound, force):
 # --- Misc ---
 @click.command()
 def test():
-    # video_file = Path(".").parent / "sources" / "v1.mp4"
-    # video = VideoFileClip(str(video_file)).subclip(15, 20)
-    pass
+    ...
 
 
 # Command group registration:
