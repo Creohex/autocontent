@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import functools
 import json
 import pytest
-from mock import MagicMock, patch
 from pathlib import Path
 
 from .. import exceptions, utils, video
@@ -20,6 +18,13 @@ TEST_VIDEO_ID = "EngW7tLk6R8"  # 5-second
 
 
 # --- Tooling: ---
+@pytest.fixture()
+def vid() -> VideoMock:
+    """Video mock obj fixture."""
+
+    return VideoMock(TEST_VIDEO_ID)
+
+
 @pytest.fixture()
 def use_dir():
     """Fixture that manages temporary directory."""
@@ -85,8 +90,17 @@ class VideoMock(Video):
 # TODO: audio-only case
 # --- Cases: ---
 def test_download_video(use_dir):
-    vid = Video(video_id=TEST_VIDEO_ID)
-    # TODO: assertions...
+    v = VideoMock(video_id=TEST_VIDEO_ID)
+    v.download_video()
+
+    info = v.info_json()
+    assert isinstance(v.filepath, Path)
+    assert TEST_VIDEO_ID in v.filepath
+    assert v.filepath.is_file()
+    assert v.filepath.suffix.split(".")[-1] == YtDlpImporter.DEFAULT_FORMAT
+    assert info["ext"] == YtDlpImporter.DEFAULT_FORMAT
+    assert info["height"] == YtDlpImporter.DEFAULT_RES_HEIGHT
+    assert info["acodec"] == video.AUDIO_CODEC_MP4A
 
 
 @pytest.mark.parametrize(
@@ -138,7 +152,7 @@ def test_download_video_combinations(
 
     assert vid.video_id == info["id"]
     assert Path(vid.filepath).is_file()
-    assert info["acodec"] == video.AUDIO_CODEC_MP4
+    assert info["acodec"] == video.AUDIO_CODEC_MP4A
     assert info["ext"] == YtDlpImporter.mime_type_to_format(
         mime_type or video.MIME_TYPE_MP4
     )
@@ -146,3 +160,15 @@ def test_download_video_combinations(
 
     if output_file:
         assert vid.filepath == output_file
+
+
+def test_download_audio(use_dir, video_debug_json_opts):
+    vid = VideoMock(TEST_VIDEO_ID)
+    vid.download_audio(additional_options=video_debug_json_opts)
+    info = vid.info_json()
+
+    assert vid.filepath.is_file()
+    assert info["id"] == TEST_VIDEO_ID
+    assert info["vcodec"] == "none"
+    assert info["acodec"] == video.AUDIO_CODEC_MP4A
+    assert bool(info["audio_channels"])
