@@ -1,7 +1,6 @@
 from __future__ import annotations
 from __future__ import unicode_literals
 
-
 import re
 from abc import ABC, abstractmethod, abstractclassmethod
 from pathlib import Path
@@ -538,3 +537,11 @@ class Video:
             subclip.write_videofile(str(target_file))
 
         return Video(filepath=str(target_file))
+
+    def modify_speed(self, factor: int | None = None):
+        """..."""
+
+        if not factor:
+            raise exceptions.ValidationError(value=factor)
+
+        raise NotImplementedError()
