@@ -140,13 +140,6 @@ def chunk(source, t1, t2, output, fmt, force, shift):
 
 
 # --- Videos ---
-@click.command()
-def test():
-    # video_file = Path(".").parent / "sources" / "v1.mp4"
-    # video = VideoFileClip(str(video_file)).subclip(15, 20)
-    pass
-
-
 @click.command(help="Download youtube video file")
 @click.option("-i", "--video_id", required=True, type=str, help="Youtube video ID")
 @click.option(
@@ -209,9 +202,16 @@ def clip(source, t1, t2, output, strip_sound, force):
 
 # TODO: video file source: handle video_id/url/filepath and reuse existing file
 # TODO: other operations:
-#           clip video parts
 #           apply subs (stylize?)
 #           remove quiet parts
+
+
+# --- Misc ---
+@click.command()
+def test():
+    # video_file = Path(".").parent / "sources" / "v1.mp4"
+    # video = VideoFileClip(str(video_file)).subclip(15, 20)
+    pass
 
 
 # Command group registration:
@@ -223,6 +223,8 @@ def grp():
 grp.add_command(pull_subtitles)
 grp.add_command(convert)
 grp.add_command(chunk)
-grp.add_command(test)
+
 grp.add_command(pull_video)
 grp.add_command(clip)
+
+grp.add_command(test)

@@ -3,9 +3,14 @@ class Error(Exception):
         super().__init__(msg)
 
 
+class ValidationError(Error):
+    def __init__(self, msg: str = None, value: str = None) -> None:
+        super().__init__(msg=msg or f"Invalid value {value}")
+
+
 class InvalidFileName(Error):
     def __init__(self, msg: str = None) -> None:
-        super().__init__(msg="Invalid file name")
+        super().__init__(msg=msg or "Invalid file name")
 
 
 class VideoException(Error):
@@ -15,4 +20,4 @@ class VideoException(Error):
 
 class VideoUnavailable(VideoException):
     def __init__(self, msg: str = None) -> None:
-        super().__init__(msg="Video unavailable")
+        super().__init__(msg=msg or "Video unavailable")
