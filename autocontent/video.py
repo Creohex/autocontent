@@ -1,26 +1,19 @@
 from __future__ import annotations
 from __future__ import unicode_literals
 
-import json
+
 import re
-import uuid
 from abc import ABC, abstractmethod, abstractclassmethod
 from pathlib import Path
-from pprint import pprint as pp
-from urllib3.util import parse_url
 
-import moviepy.editor
-import pytube
-import youtube_dl
 from moviepy.editor import VideoFileClip, concatenate_videoclips, TextClip
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from pytube import exceptions as pytube_exc, YouTube
 from pytube.cli import on_progress
 from yt_dlp import YoutubeDL as ytdlp
 from yt_dlp.utils import DownloadError
 
 from . import exceptions, utils
-from .utils import DEBUG
+from .utils import DEBUG, Spinner
 
 
 VIDEO_URL_BASE = "https://youtu.be/"
@@ -256,8 +249,6 @@ class YtDlpImporter(VideoImporter):
         res_str = f"[height{cmpr}{height}]"
 
         options = {
-            # "format": format_id,  # no longer neeeded?
-            # "outtmpl": f"{filepath}.%(ext)s",  # old
             "format": f"bestvideo{res_str}+bestaudio/best{res_str}",
             "merge_output_format": fmt or cls.DEFAULT_FORMAT,
             "outtmpl": str(output_file),
@@ -265,9 +256,7 @@ class YtDlpImporter(VideoImporter):
             "forcejson": False,
             "quiet": True,  # suppress downloading messages
             # "postprocessor_hooks": ... # video postprocessing hooks
-            # "progress_hooks": [...] # video download progress hooks
-            # "writeinfojson": True,
-            # "overwrites": True,  # overwrite file(s) if they already exist (handle 'force' here?)
+            # "overwrites": True,  # handle 'force' here?
             # "simulate": True,  # for testing?
         }
         options.update(additional_options or {})
@@ -282,47 +271,6 @@ class YtDlpImporter(VideoImporter):
                 return ydl.extract_info(self.url, download=False)
             except DownloadError:
                 raise exceptions.VideoUnavailable()
-
-    def appropriate_format(
-        self,
-        res_height: int,
-        exact_resolution: bool,
-        formats: list[int],
-        with_audio: bool,
-    ):
-        """Searches for best available video format ID, taking options into account."""
-
-        info = self.extract_info()
-        format_ids = []
-
-        for f in info["formats"]:
-            if (
-                # f["resolution"] in resolutions
-                # (
-                #     (f["height"] == res_height)
-                #     if exact_resolution
-                #     else (f["height"] <= res_height)
-                # )
-                f["ext"] in formats
-                and (
-                    ("audio_channels" in f and f["audio_channels"] != "none")
-                    if with_audio
-                    else True
-                )
-                and f["acodec"] == AUDIO_CODEC_MP4A
-                and re.match(r"^\d+$", f["format_id"])
-            ):
-                pp(f"Found appropriate format ID: {f['format']}")
-                format_ids.append(f["format_id"])
-
-                if DEBUG:
-                    with open(f"./sources/{f['format_id']}.json", "w") as fil:
-                        json.dump(f, fil)
-
-        if not len(format_ids):
-            raise Exception("No appropriate formats found to download")
-
-        return sorted(format_ids, key=lambda f: -int(f))[0]
 
     def download_audio(
         self,
@@ -345,16 +293,22 @@ class YtDlpImporter(VideoImporter):
 
         options = {
             "format": "bestaudio/best",
-            "extractaudio": True,
             "audioformat": AUDIO_FMT_MP3,
+            "merge_output_format": AUDIO_FMT_MP3,
             # FIXME: outtmpl: for some reason extension is duplicated otherwise
             "outtmpl": str(output_file.parent / output_file.stem),
+            "noplaylist": True,
+            "forcejson": False,
+            "quiet": True,
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": AUDIO_FMT_MP3,
                     "preferredquality": bitrate,
                 }
+            ],
+            "postprocessor_hooks": [
+                Spinner(title_former=lambda x: f"{x['postprocessor']} ({x['status']})")
             ],
         }
         options.update(additional_options or {})
@@ -372,7 +326,6 @@ class YtDlpImporter(VideoImporter):
         max_resolution: str | None = RESOLUTION_360,
         mime_type: str | None = MIME_TYPE_MP4,
         exact_resolution: bool | None = False,
-        with_audio: bool | None = True,
         output_file: Path | str | None = None,
         force: bool | None = False,
         additional_options: dict(str, str) | None = None,
@@ -382,7 +335,6 @@ class YtDlpImporter(VideoImporter):
         - max_resolution (str | None, optional (RESOLUTION_360)): maximum resolution
         - mime_type (str | None, optional (MIME_TYPE_MP4)): video format
         - exact_resolution (bool | None, optional (False)): aim for specific resolution
-        - with_audio (bool | None, optional (True)): include audio stream?
         - output_file (Path | str | None, optional (None)): override output location
         - force (bool | None (False)): overwrite flag
         - additional options (dict): extra YoutubeDL options
@@ -394,7 +346,6 @@ class YtDlpImporter(VideoImporter):
         mime_type = mime_type or MIME_TYPE_MP4
         fmt = self.mime_type_to_format(mime_type)
         exact_resolution = False if exact_resolution is None else exact_resolution
-        with_audio = True if with_audio is None else with_audio
         force = False if force is None else force
 
         output_file = self.validate_filename(
@@ -497,8 +448,10 @@ class Video:
     ) -> None:
         """Download audio track.
 
-        - output_file (Path | str | None, optional (None)): override output location.
-        - force (bool | None, optional (False)): overwrite if exists.
+        - output_file (Path | str | None, optional (None)): override output location
+        - bitrate (int | None, optional (None)): desired audio bitrate
+        - force (bool | None, optional (False)): overwrite if exists
+        - additional_options (dict, optional (None)): additional importer options
         """
 
         self.filepath = self.default_importer(self.video_id).download_audio(
