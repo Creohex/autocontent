@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import itertools
+import progressbar
 import re
 import uuid
 from datetime import datetime, timedelta
@@ -124,3 +128,27 @@ def dialog_confirm(message: str | None = None) -> bool:
             return True
         elif reply in negative_replies:
             return False
+
+
+class ProgressBar:
+    def __init__(self, key_total, key_progress) -> ProgressBar:
+        self.key_total = key_total
+        self.key_progress = key_progress
+        self.bar = progressbar.ProgressBar()
+
+    def __call__(self, update):
+        if not self.bar.max_value:
+            self.bar.max_value = update[self.key_total]
+        self.bar.update(update[self.key_progress])
+
+
+class Spinner:
+    def __init__(self, title_former: callable | None = None) -> Spinner:
+        self.title_former = title_former
+        self.spinner = itertools.cycle(["-", "\\", "|", "/"])
+
+    def __call__(self, update) -> None:
+        text = "... "
+        if self.title_former:
+            text = self.title_former(update) + text
+        print(text + next(self.spinner), end="\r")
