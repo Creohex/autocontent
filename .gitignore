@@ -2,6 +2,7 @@
 /subs/*
 /sources/*
 /test_videos
+/config.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
