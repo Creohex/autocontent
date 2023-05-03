@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import os
 import progressbar
 import re
 import uuid
@@ -17,6 +18,9 @@ TIME_FMT = r"%H:%M:%S"
 
 ROOT_DIR = Path(__file__).absolute().parent.parent
 """Project root directory."""
+
+HOME_DIR = Path(os.getenv("HOME")).absolute()
+"""Home directory."""
 
 
 def unique_id():
