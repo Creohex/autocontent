@@ -111,6 +111,40 @@ class VideoImporter(ABC):
 
         return filename
 
+    def derive_filepath(self, path: Path | str | None, fmt: str, force: bool) -> Path:
+        """Form absolute resulting filename for video (or audio) file.
+
+        - path (Path | str | None): Path predicate
+        - fmt (str): File format
+        - force (bool): overwrite existing file
+        """
+
+        vpath = (
+            (self.default_filepath(fmt) if not path else Path(path))
+            .expanduser()
+            .absolute()
+        )
+
+        if vpath.is_dir():
+            vpath = vpath / f"{self.video_id}.{fmt}"
+
+        else:
+            suff = vpath.suffix
+            if not suff:
+                vpath = Path(f"{vpath}.{fmt}")
+            elif suff[1:] not in FORMATS_VID:
+                raise exceptions.InvalidFileName(msg=f"Invalid format provided: {path}")
+
+        if not re.match(r"^[\d\w\-_]{1,20}\.[\d\w]{2,5}$", vpath.name):
+            raise exceptions.InvalidFileName(msg=f"Invalid name for video file: {path}")
+
+        utils.ensure_inside_home(vpath)
+        utils.ensure_folder(vpath)
+        # FIXME: not needed? 'overwrites' would work better perhaps?
+        utils.check_existing_file(vpath, force=force)
+
+        return vpath
+
     @staticmethod
     def resolution_to_height(res: str) -> int:
         """Transform resolution to video frame height.

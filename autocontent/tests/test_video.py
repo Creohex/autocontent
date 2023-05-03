@@ -7,7 +7,7 @@ import pytest
 from pathlib import Path
 
 from .. import exceptions, utils, video
-from ..video import Video, YtDlpImporter
+from ..video import Video, YtDlpImporter, FMT_MP4
 
 
 video.DEFAULT_DIR = utils.ROOT_DIR / "test_videos/"
@@ -173,3 +173,44 @@ def test_download_audio(use_dir, debug_json_opts):
     assert info["vcodec"] == "none"
     assert info["acodec"] == video.AUDIO_CODEC_MP4A
     assert bool(info["audio_channels"])
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        # empty
+        (None, YtDlpImporter(video_id=TEST_VIDEO_ID).default_filepath()),
+        ("", YtDlpImporter(video_id=TEST_VIDEO_ID).default_filepath()),
+
+        # home
+        ("~", utils.HOME_DIR / f"{TEST_VIDEO_ID}.mp4"),
+        ("~/", utils.HOME_DIR / f"{TEST_VIDEO_ID}.mp4"),
+        ("~/bla", utils.HOME_DIR / f"bla.mp4"),
+        ("~/bla.mp4", utils.HOME_DIR / f"bla.mp4"),
+
+        # FIXME: depends on run dir..
+        # relative
+        (".", utils.ROOT_DIR / f"{TEST_VIDEO_ID}.mp4"),
+        ("./", utils.ROOT_DIR / f"{TEST_VIDEO_ID}.mp4"),
+        ("./bla", utils.ROOT_DIR / f"bla.mp4"),
+        ("bla.webm", utils.ROOT_DIR / "bla.webm"),
+
+        # invalid
+        ("/", exceptions.InvalidFilePath),
+        ("/gibberish", exceptions.InvalidFilePath),
+        ("/gibberish/gibberish/bla.mp4", exceptions.InvalidFilePath),
+        (utils.HOME_DIR.parent / "bla.mp4", exceptions.InvalidFilePath),
+        ("bla.xxx", exceptions.InvalidFileName),
+        (".x", exceptions.InvalidFileName),
+        ("bla.x", exceptions.InvalidFileName),
+    ],
+)
+def test_importer_derive_filepath(path, expected):
+    importer = YtDlpImporter(video_id=TEST_VIDEO_ID)
+
+    if isinstance(expected, type):
+        with pytest.raises(expected):
+            importer.derive_filepath(path, FMT_MP4, False)
+    else:
+        abs_path = importer.derive_filepath(path, FMT_MP4, False)
+        assert abs_path == expected
