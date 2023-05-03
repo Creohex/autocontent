@@ -7,6 +7,11 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
+
+import toml
+
+from . import exceptions
 
 
 DEBUG = False
@@ -168,3 +173,51 @@ class Spinner:
         if self.title_former:
             text = self.title_former(update) + text
         print(text + next(self.spinner), end="\r")
+
+
+class Config:
+    """User config file (TOML) manager."""
+
+    DEFAULT_CONFIG_PATH = ROOT_DIR / "config.toml"
+    """User configuration file."""
+
+    def __init__(self, data: dict) -> None:
+        self.data = data
+        # for k, v in self.data.values():
+        #     setattr(self, k, v)
+
+    @classmethod
+    def load(cls):
+        """Load configuration from file."""
+
+        if not cls.DEFAULT_CONFIG_PATH.is_file():
+            cls.DEFAULT_CONFIG_PATH.touch()
+        return Config(toml.load(cls.DEFAULT_CONFIG_PATH))
+
+    @classmethod
+    def validate(cls, value):
+        """..."""
+
+        # TODO: ...
+        return str(value)
+
+    def __call__(self, option_name) -> Any:
+        if self.data.get(option_name) is None:
+            if dialog_confirm(
+                f"Parameter '{option_name}' not present "
+                f"in {self.DEFAULT_CONFIG_PATH.name}, "
+                "would you like to set it now?"
+            ):
+                print(f"New value for {option_name}: ", end="")
+                self.data[option_name] = self.validate(input())
+                with open(self.DEFAULT_CONFIG_PATH, "w") as f:
+                    toml.dump(self.data, f)
+                print("Done!")
+            else:
+                raise Exception(f"Parameter '{option_name}' not set!")
+
+        return self.data[option_name]
+
+
+# FIXME: instantiate Config here
+config = Config.load()
