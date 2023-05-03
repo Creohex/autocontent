@@ -40,6 +40,18 @@ def format_time_ms(seconds: float) -> str:
     return formatted_str
 
 
+def ensure_inside_home(file: Path | str) -> None:
+    """Checks if provided path is inside home directory
+
+    - file (Path | str): file path
+    """
+
+    if not Path(file).absolute().is_relative_to(HOME_DIR):
+        raise exceptions.InvalidFilePath(
+            msg=f"Invalid path provided (outside of home direcotry): {file}"
+        )
+
+
 def ensure_folder(file_path: Path | str) -> None:
     """Ensures that all folders leading to the provided file path exist."""
 

@@ -1,6 +1,10 @@
+#!pytest -s
+
 import pytest
+from pathlib import Path
 
 from .. import utils
+from .. import exceptions
 
 
 @pytest.mark.parametrize(
@@ -34,3 +38,24 @@ def test_parse_time_input(time_string, expected):
 def test_parse_time_input_negative(time_string):
     with pytest.raises(Exception):
         utils.parse_time_value(time_string)
+
+
+@pytest.mark.parametrize(
+    ("path", "raises"),
+    [
+        ("~", None),
+        ("~/", None),
+        ("~/blabla", None),
+        ("~/bla/blabla/bla.txt", None),
+        ("/", exceptions.InvalidFilePath),
+        ("/bla", exceptions.InvalidFilePath),
+        ("/bla.txt", exceptions.InvalidFilePath),
+        (utils.HOME_DIR.parent, exceptions.InvalidFilePath),
+    ],
+)
+def test_ensure_inside_home(path, raises):
+    if raises:
+        with pytest.raises(exceptions.InvalidFilePath):
+            utils.ensure_inside_home(path)
+    else:
+        utils.ensure_inside_home(path)
