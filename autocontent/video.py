@@ -56,11 +56,21 @@ AUDIO_BITRATE_DEFAULT = 192
 AUDIO_FMT_MP3 = "mp3"
 """Audio format constants."""
 
+MIME_TYPE_MHTML = "video/" + FMT_MHTML
 MIME_TYPE_3GPP = "video/" + FMT_3GPP
 MIME_TYPE_WEBM = "video/" + FMT_WEBM
 MIME_TYPE_MP4 = "video/" + FMT_MP4
-MIME_TYPES = [MIME_TYPE_3GPP, MIME_TYPE_WEBM, MIME_TYPE_MP4]
+MIME_TYPES = [MIME_TYPE_MHTML, MIME_TYPE_3GPP, MIME_TYPE_WEBM, MIME_TYPE_MP4]
 """Video MIME types."""
+
+MIME_FMT_MAP = {
+    MIME_TYPE_MP4: FMT_MP4,
+    MIME_TYPE_3GPP: FMT_3GPP,
+    MIME_TYPE_WEBM: FMT_WEBM,
+    MIME_TYPE_MHTML: FMT_MHTML,
+}
+FMT_MIME_MAP = {v: k for k, v in MIME_FMT_MAP.items()}
+"""MIME type <-> format mappings."""
 
 DEFAULT_DIR = utils.ROOT_DIR / "sources/"
 """Default directory for video file management."""
@@ -73,21 +83,12 @@ class VideoImporter(ABC):
     DEFAULT_MIME_TYPE = MIME_TYPE_MP4
     DEFAULT_FORMAT = FMT_MP4
 
-    @property
-    def success(self):
-        return self.filepath is not None
-
     def __init__(self, video_id=None, url=None) -> None:
         if not bool(video_id) ^ bool(url):
             raise Exception("Either video_id or url must be provided")
 
-        self._downloader = None
-
-        self.video_id = Video.validate_video_id(
-            video_id or Video.extract_video_id(video_id)
-        )
+        self.video_id = Video.validate_video_id(video_id or Video.extract_video_id(url))
         self.url = Video.video_id_to_url(self.video_id)
-        self.filepath = None
 
     def default_filepath(self, fmt=FMT_MP4):
         """Generate default filepath for the video."""
@@ -102,12 +103,6 @@ class VideoImporter(ABC):
         """
 
         fmt = fmt or self.DEFAULT_FORMAT
-
-        if not filename.suffix:
-            filename = Path(f"filename.{fmt}")
-        name = filename.name.split(".")[0]
-        if not re.match(r"^[\d\w\-_]{1,20}$", name):
-            raise exceptions.InvalidFileName(msg=f"Invalid name for video file: {name}")
 
         return filename
 
@@ -127,7 +122,6 @@ class VideoImporter(ABC):
 
         if vpath.is_dir():
             vpath = vpath / f"{self.video_id}.{fmt}"
-
         else:
             suff = vpath.suffix
             if not suff:
@@ -158,7 +152,19 @@ class VideoImporter(ABC):
     def mime_type_to_format(mime_type: str) -> str:
         """Transform MIME type to video format."""
 
-        return mime_type.split("/")[-1]
+        if mime_type not in MIME_TYPES:
+            raise exceptions.ValidationError(msg=f"Invalid MIME type: {mime_type}")
+
+        return MIME_FMT_MAP[mime_type]
+
+    @staticmethod
+    def format_to_mime_type(fmt: str) -> str:
+        """Transform video format to MIME type."""
+
+        if fmt not in FORMATS_VID:
+            raise exceptions.ValidationError(msg=f"Invalid video format: {fmt}")
+
+        return FMT_MIME_MAP[fmt]
 
     @abstractmethod
     def download(self):
@@ -373,26 +379,15 @@ class YtDlpImporter(VideoImporter):
         - additional options (dict): extra YoutubeDL options
         """
 
-        # TODO: handle/check output path here (verity/add parent/name/suffix)
-        max_resolution = max_resolution or RESOLUTION_360
-        res_height = self.resolution_to_height(max_resolution)
         mime_type = mime_type or MIME_TYPE_MP4
         fmt = self.mime_type_to_format(mime_type)
-        exact_resolution = False if exact_resolution is None else exact_resolution
         force = False if force is None else force
 
-        output_file = self.validate_filename(
-            Path(output_file) if output_file else self.default_filepath(fmt)
-        )
-        utils.ensure_folder(output_file)
-        # FIXME: not needed? 'overwrites' would work better perhaps?
-        utils.check_existing_file(output_file, force=force)
-
         options = self.construct_options(
-            height=res_height,
-            exact=exact_resolution,
+            height=self.resolution_to_height(max_resolution or RESOLUTION_360),
+            exact=False if exact_resolution is None else exact_resolution,
             fmt=fmt,
-            output_file=output_file,
+            output_file=self.derive_filepath(output_file, fmt, force),
             additional_options=additional_options or {},
         )
 
@@ -421,6 +416,7 @@ class Video:
         filepath: str = None,
         video_id: str = None,
         url: str = None,
+        audio_only: bool | None = None,
         download_kwargs: dict[str, str] | None = None,
     ) -> Video:
         if sum(map(bool, (filepath, video_id, url))) != 1:
@@ -431,16 +427,14 @@ class Video:
         self.video_id = None
 
         if filepath:
-            self.filepath = Path(self.check_video_file(filepath))
+            self.filepath = self.check_video_file(filepath)
             self.video_id = self.extract_video_id(self.filepath)
-            if not self.video_id:  # FIXME: ...
-                raise Exception("Invalid video ID")
-        elif video_id:
-            self.video_id = video_id
-            self.download_video(**download_kwargs)
-        elif url:
-            self.video_id = self.extract_video_id(url)
-            self.download_video(**download_kwargs)
+        else:
+            self.video_id = video_id or self.extract_video_id(url)
+            if audio_only:
+                self.download_audio(**download_kwargs)
+            else:
+                self.download_video(**download_kwargs)
 
     def download_video(
         self,
@@ -521,20 +515,14 @@ class Video:
         """Check if video file exists and in correct format."""
 
         filepath = Path(filepath).absolute()
+
+        if filepath.suffix[1:] not in FORMATS_VID:
+            formats = ",".join(FORMATS_VID)
+            raise Exception(f"Incorrect file format (supported: {formats})")
         if not filepath.is_file():
             raise Exception("File not found")
-        if not cls.check_video_extension(filepath):
-            raise Exception(
-                f"Incorrect file format (supported: {','.join(FORMATS_VID)})"
-            )
 
-        return str(filepath)
-
-    @classmethod
-    def check_video_extension(cls, file: str) -> bool:
-        """Checks if provided video file type is supported."""
-
-        return Path(file).suffix[1:] in FORMATS_VID
+        return filepath
 
     def clip(
         self,
