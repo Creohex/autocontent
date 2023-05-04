@@ -382,12 +382,13 @@ class YtDlpImporter(VideoImporter):
         mime_type = mime_type or MIME_TYPE_MP4
         fmt = self.mime_type_to_format(mime_type)
         force = False if force is None else force
+        output_file = self.derive_filepath(output_file, fmt, force)
 
         options = self.construct_options(
             height=self.resolution_to_height(max_resolution or RESOLUTION_360),
             exact=False if exact_resolution is None else exact_resolution,
             fmt=fmt,
-            output_file=self.derive_filepath(output_file, fmt, force),
+            output_file=output_file,
             additional_options=additional_options or {},
         )
 

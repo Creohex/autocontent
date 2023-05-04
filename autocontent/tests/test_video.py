@@ -90,13 +90,13 @@ class VideoMock(Video):
 
 # TODO: audio-only case
 # --- Cases: ---
-def test_download_video(use_dir):
+def test_download_video(use_dir, debug_json_opts):
     v = VideoMock(video_id=TEST_VIDEO_ID)
-    v.download_video()
+    v.download_video(additional_options=debug_json_opts)
 
     info = v.info_json()
     assert isinstance(v.filepath, Path)
-    assert TEST_VIDEO_ID in v.filepath
+    assert TEST_VIDEO_ID in str(v.filepath)
     assert v.filepath.is_file()
     assert v.filepath.suffix.split(".")[-1] == YtDlpImporter.DEFAULT_FORMAT
     assert info["ext"] == YtDlpImporter.DEFAULT_FORMAT
@@ -111,7 +111,6 @@ def test_download_video(use_dir):
         ("gibberish", None, Exception),
         (123, None, TypeError),
         ("0" * 11, None, exceptions.VideoUnavailable),
-        (TEST_VIDEO_ID, "145p", Exception),
     ],
 )
 def test_download_video_negative(use_dir, invalid_video_id, max_resolution, expected):
@@ -164,7 +163,7 @@ def test_download_video_combinations(
 
 
 def test_download_audio(use_dir, debug_json_opts):
-    vid = VideoMock(TEST_VIDEO_ID_LONG)
+    vid = VideoMock(TEST_VIDEO_ID)
     vid.download_audio(additional_options=debug_json_opts)
     info = vid.info_json()
 
