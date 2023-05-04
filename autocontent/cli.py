@@ -199,6 +199,31 @@ def pull_video(video_id, url, resolution, format, output, force):
     click.echo(f"Saved to: {video.filepath}")
 
 
+@click.command(help="Download audio track of a youtube video")
+@opts_video_id_url
+@opts_output_force
+@click.option(
+    "-b",
+    "--bitrate",
+    required=False,
+    type=int,
+    default=AUDIO_BITRATE_DEFAULT,
+    help="Preferred track bitrate",
+)
+def pull_audio(video_id, url, bitrate, output, force):
+    """Download audio track part of a youtube video."""
+
+    download_kwargs = {
+        "output_file": output,
+        "force": force,
+        "bitrate": bitrate,
+    }
+    audio = Video(
+        video_id=video_id, url=url, audio_only=True, download_kwargs=download_kwargs
+    )
+    click.echo(f"Saved to {audio.filepath}")
+
+
 @click.command()
 @click.option("-s", "--source", required=True, type=str, help="Video file path")
 @click.option(
