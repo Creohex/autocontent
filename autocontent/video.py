@@ -613,45 +613,44 @@ class Video:
         """
 
         # Iterate over audio to find all silent windows.
-        num_windows = math.floor(audio_clip.end / window_size)
-        window_is_silent = []
-        for i in range(num_windows):
+        silent_windows = []
+        for i in range(math.floor(audio_clip.end / window_size)):
             s = audio_clip.subclip(i * window_size, (i + 1) * window_size)
             v = s.max_volume()
-            window_is_silent.append(v < volume_threshold)
+            silent_windows.append(v < volume_threshold)
 
-        # Find speaking intervals.
         speaking_start = 0
         speaking_end = 0
-        speaking_intervals = []
-        for i in range(1, len(window_is_silent)):
-            e1 = window_is_silent[i - 1]
-            e2 = window_is_silent[i]
-            # silence -> speaking
+        active_intervals = []
+        for i in range(1, len(silent_windows)):
+            e1 = silent_windows[i - 1]
+            e2 = silent_windows[i]
+
             if e1 and not e2:
                 speaking_start = i * window_size
-            # speaking -> silence, now have a speaking interval
+
             if not e1 and e2:
                 speaking_end = i * window_size
                 new_speaking_interval = [
                     speaking_start - ease_in,
                     speaking_end + ease_in,
                 ]
+
                 # With tiny windows, this can sometimes overlap the previous window, so merge.
                 need_to_merge = (
-                    len(speaking_intervals) > 0
-                    and speaking_intervals[-1][1] > new_speaking_interval[0]
+                    len(active_intervals) > 0
+                    and active_intervals[-1][1] > new_speaking_interval[0]
                 )
                 if need_to_merge:
                     merged_interval = [
-                        speaking_intervals[-1][0],
+                        active_intervals[-1][0],
                         new_speaking_interval[1],
                     ]
-                    speaking_intervals[-1] = merged_interval
+                    active_intervals[-1] = merged_interval
                 else:
-                    speaking_intervals.append(new_speaking_interval)
+                    active_intervals.append(new_speaking_interval)
 
-        return speaking_intervals
+        return active_intervals
 
     def cut_silence(
         self,
@@ -677,7 +676,7 @@ class Video:
 
         vid = VideoFileClip(str(self.filepath))
         intervals = self.find_speaking(
-            vid.audio, window_size=0.5, volume_threshold=0.1, ease_in=0#.25
+            vid.audio, window_size=0.1, volume_threshold=0.05, ease_in=0.1
         )
         print("Keeping intervals: " + str(intervals))
         clips = [vid.subclip(max(start, 0), end) for [start, end] in intervals]
@@ -685,4 +684,7 @@ class Video:
         edited_vid = concatenate_videoclips(clips)
         edited_vid.write_videofile(str(output_file))
 
+        print(f"Initial video duration: {vid.duration:.2f} seconds")
+        print(f"Edited video duration: {edited_vid.duration:.2f} seconds")
+        print(f"Diff: {(vid.duration - edited_vid.duration):.2f} seconds")
         return Video(filepath=output_file)
