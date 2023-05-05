@@ -85,6 +85,38 @@ def check_existing_file(file: Path, force: bool = False) -> None:
             raise Exception(f"file already exists: {file}")
 
 
+def derive_filepath(
+    path: Path | str | None, entity_id: str, fmt: str, default_path: Path, force: bool
+) -> Path:
+    """Form absolute resulting path for a file.
+
+    - path (Path | str | None): Path predicate
+    - fmt (str): File format
+    - force (bool): overwrite existing file
+    """
+
+    vpath = (Path(path) if path else default_path).expanduser().absolute()
+
+    if vpath.is_dir():
+        vpath = vpath / f"{entity_id}.{fmt}"
+    else:
+        suff = vpath.suffix
+        if not suff:
+            vpath = Path(f"{vpath}.{fmt}")
+        # elif suff[1:] not in FORMATS_VID:
+        #     raise exceptions.InvalidFileName(msg=f"Invalid format provided: {path}")
+
+    # FIXME: ...
+    # if not re.match(r"^[\d\w\_]{11}.*\.[\d\w]{2,5}$", vpath.name):
+    #     raise exceptions.InvalidFileName(msg=f"Invalid name for video file: {path}")
+
+    ensure_inside_home(vpath)
+    ensure_folder(vpath)
+    check_existing_file(vpath, force=force)
+
+    return vpath
+
+
 def write_to_file(file: Path | str, contents: str) -> None:
     """Writes contents to file.
 

@@ -6,7 +6,13 @@ import re
 from abc import ABC, abstractmethod, abstractclassmethod
 from pathlib import Path
 
-from moviepy.editor import concatenate_videoclips, TextClip, vfx, VideoFileClip
+from moviepy.editor import (
+    AudioFileClip,
+    concatenate_videoclips,
+    TextClip,
+    vfx,
+    VideoFileClip,
+)
 from pytube import exceptions as pytube_exc, YouTube
 from pytube.cli import on_progress
 from yt_dlp import YoutubeDL as ytdlp
@@ -110,47 +116,14 @@ class VideoImporter(ABC):
 
         return filename
 
-    def derive_filepath(self, path: Path | str | None, fmt: str, force: bool) -> Path:
-        """Form absolute resulting filename for video (or audio) file.
-
-        - path (Path | str | None): Path predicate
-        - fmt (str): File format
-        - force (bool): overwrite existing file
-        """
-
-        vpath = (
-            (self.default_filepath(fmt) if not path else Path(path))
-            .expanduser()
-            .absolute()
-        )
-
-        if vpath.is_dir():
-            vpath = vpath / f"{self.video_id}.{fmt}"
-        else:
-            suff = vpath.suffix
-            if not suff:
-                vpath = Path(f"{vpath}.{fmt}")
-            elif suff[1:] not in FORMATS_VID:
-                raise exceptions.InvalidFileName(msg=f"Invalid format provided: {path}")
-
-        if not re.match(r"^[\d\w\-_]{1,20}\.[\d\w]{2,5}$", vpath.name):
-            raise exceptions.InvalidFileName(msg=f"Invalid name for video file: {path}")
-
-        utils.ensure_inside_home(vpath)
-        utils.ensure_folder(vpath)
-        # FIXME: not needed? 'overwrites' would work better perhaps?
-        utils.check_existing_file(vpath, force=force)
-
-        return vpath
-
     @staticmethod
-    def resolution_to_height(res: str) -> int:
+    def resolution_to_height(res: str | int) -> int:
         """Transform resolution to video frame height.
 
         - res (str): resolution in "XXXp" format
         """
 
-        return int(res.strip("p"))
+        return res if isinstance(res, int) else int(res.strip("p"))
 
     @staticmethod
     def mime_type_to_format(mime_type: str) -> str:
@@ -386,8 +359,13 @@ class YtDlpImporter(VideoImporter):
         mime_type = mime_type or MIME_TYPE_MP4
         fmt = self.mime_type_to_format(mime_type)
         force = False if force is None else force
-        output_file = self.derive_filepath(output_file, fmt, force)
-
+        output_file = utils.derive_filepath(
+            output_file,
+            entity_id=self.video_id,
+            fmt=fmt,
+            default_path=DEFAULT_DIR / f"{self.video_id}.{fmt}",
+            force=force,
+        )
         options = self.construct_options(
             height=self.resolution_to_height(max_resolution or RESOLUTION_360),
             exact=False if exact_resolution is None else exact_resolution,
@@ -433,7 +411,7 @@ class Video:
 
         if filepath:
             self.filepath = self.check_video_file(filepath)
-            self.video_id = self.extract_video_id(self.filepath)
+            self.video_id = self.extract_video_id(self.filepath.name)
         else:
             self.video_id = video_id or self.extract_video_id(url)
             if audio_only:
@@ -508,7 +486,7 @@ class Video:
 
         except IndexError:
             raise exceptions.ValidationError(
-                msg=f"Unable to derive video ID from string", value=s
+                f"Unable to derive video ID from string", s
             )
 
     @staticmethod
@@ -521,7 +499,7 @@ class Video:
         return video_id
 
     @classmethod
-    def check_video_file(cls, filepath: str) -> str:
+    def check_video_file(cls, filepath: str) -> Path:
         """Check if video file exists and in correct format."""
 
         filepath = Path(filepath).absolute()
@@ -549,15 +527,21 @@ class Video:
         if t1 >= t2:
             raise Exception(f"Incorrect time range provided ({t1} - {t2})")
 
-        output_file = (
-            Path(output_file)
-            if output_file
-            else DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
+        output_file = utils.derive_filepath(
+            output_file,
+            self.video_id,
+            FMT_MP4,
+            DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}",
+            False if force is None else force,
         )
-        force = False if force is None else force
-        utils.ensure_inside_home(output_file)
-        utils.check_existing_file(output_file, force=force)
-        utils.ensure_folder(output_file)
+        # output_file = (
+        #     Path(output_file)
+        #     if output_file
+        #     else DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
+        # )
+        # utils.ensure_inside_home(output_file)
+        # utils.check_existing_file(output_file, force=force)
+        # utils.ensure_folder(output_file)
 
         with VideoFileClip(str(self.filepath)) as vid:
             subclip = vid.subclip(t1, t2)
@@ -572,7 +556,7 @@ class Video:
         factor: float | None = None,
         output_file: Path | str | None = None,
         force: bool | None = False,
-    ):
+    ) -> Video:
         """Produces clip with a modified playback speed."""
 
         if (
@@ -582,16 +566,14 @@ class Video:
         ):
             raise exceptions.ValidationError(value=factor)
         factor = float(factor)
-        output_file = (
-            Path(output_file)
-            if output_file
-            else DEFAULT_DIR / f"{self.video_id}-spd-{factor}x.{FMT_MP4}"
-        )
-        force = False if force is None else force
 
-        utils.ensure_inside_home(output_file)
-        utils.check_existing_file(output_file, force=force)
-        utils.ensure_folder(output_file)
+        output_file = utils.derive_filepath(
+            output_file,
+            self.video_id,
+            FMT_MP4,
+            DEFAULT_DIR / f"{self.video_id}-spd-{factor}x.{FMT_MP4}",
+            False if force is None else force,
+        )
 
         clip = VideoFileClip(str(self.filepath)).fx(vfx.speedx, factor)
         clip.write_videofile(str(output_file))
@@ -600,8 +582,12 @@ class Video:
 
     @classmethod
     def find_speaking(
-        cls, audio_clip, window_size=0.1, volume_threshold=0.01, ease_in=0.25
-    ):
+        cls,
+        audio_clip: AudioFileClip,
+        window_size: float | None = 0.1,
+        volume_threshold: float | None = 0.01,
+        ease_in: float | None = 0.25,
+    ) -> list:
         """
         Iterate over audio to find the non-silent parts. Outputs a list of
         (speaking_start, speaking_end) intervals.
@@ -656,23 +642,20 @@ class Video:
         self,
         output_file: Path | str | None = None,
         force: bool | None = False,
-    ):
+    ) -> Video:
         """Cuts silent parts of a video.
 
         - output_file (Path | str | None, optional (None)): override output file
         - force (bool | None, optional (False)): overwrite if already exists
         """
 
-        output_file = (
-            Path(output_file)
-            if output_file
-            else DEFAULT_DIR / f"{self.video_id}-cleaned.{FMT_MP4}"
+        output_file = utils.derive_filepath(
+            output_file,
+            self.video_id,
+            FMT_MP4,
+            DEFAULT_DIR / f"{self.video_id}-cleaned.{FMT_MP4}",
+            False if force is None else force,
         )
-        force = False if force is None else force
-
-        utils.ensure_inside_home(output_file)
-        utils.check_existing_file(output_file, force=force)
-        utils.ensure_folder(output_file)
 
         vid = VideoFileClip(str(self.filepath))
         intervals = self.find_speaking(
@@ -687,4 +670,5 @@ class Video:
         print(f"Initial video duration: {vid.duration:.2f} seconds")
         print(f"Edited video duration: {edited_vid.duration:.2f} seconds")
         print(f"Diff: {(vid.duration - edited_vid.duration):.2f} seconds")
+
         return Video(filepath=output_file)
