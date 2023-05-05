@@ -18,7 +18,7 @@ from .utils import DEBUG, Spinner
 VIDEO_URL_BASE = "https://youtu.be/"
 """YouTube base URL."""
 
-VIDEO_ID_PATTERN = r"[0-9A-Za-z_-]{11}"
+VIDEO_ID_PATTERN = r"[0-9A-Za-z_]{11}"
 """YouTube video ID regex pattern."""
 
 FMT_MHTML = "mhtml"
@@ -74,6 +74,9 @@ FMT_MIME_MAP = {v: k for k, v in MIME_FMT_MAP.items()}
 
 DEFAULT_DIR = utils.ROOT_DIR / "sources/"
 """Default directory for video file management."""
+
+VIDEO_SPEED_MAX_FACTOR = 100.0
+"""Maximum video speed factor."""
 
 
 class VideoImporter(ABC):
@@ -496,11 +499,16 @@ class Video:
         return VIDEO_URL_BASE + cls.validate_video_id(video_id)
 
     @staticmethod
-    def extract_video_id(url: str) -> str:
+    def extract_video_id(s: str) -> str:
+        """Attempts to extract video ID from a string (filepath, url)."""
+
         try:
-            return re.search(VIDEO_ID_PATTERN, url).group()
-        except AttributeError:
-            raise Exception(f"Unable to derive video ID from string: {url}")
+            return re.findall(VIDEO_ID_PATTERN, str(s)[::-1])[0][::-1]
+
+        except IndexError:
+            raise exceptions.ValidationError(
+                msg=f"Unable to derive video ID from string", value=s
+            )
 
     @staticmethod
     def validate_video_id(video_id: str) -> str:
@@ -518,7 +526,7 @@ class Video:
         filepath = Path(filepath).absolute()
 
         if filepath.suffix[1:] not in FORMATS_VID:
-            formats = ",".join(FORMATS_VID)
+            formats = ", ".join(FORMATS_VID)
             raise Exception(f"Incorrect file format (supported: {formats})")
         if not filepath.is_file():
             raise Exception("File not found")
@@ -535,7 +543,6 @@ class Video:
     ) -> Video:
         """Cut clip from a video file."""
 
-        force = False if force is None else force
         t1 = utils.parse_time_value(t1)
         t2 = utils.parse_time_value(t2)
         if t1 >= t2:
@@ -546,10 +553,12 @@ class Video:
             if output_file
             else DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
         )
+        force = False if force is None else force
+        utils.ensure_inside_home(output_file)
         utils.check_existing_file(output_file, force=force)
         utils.ensure_folder(output_file)
 
-        with VideoFileClip(self.filepath) as vid:
+        with VideoFileClip(str(self.filepath)) as vid:
             subclip = vid.subclip(t1, t2)
             if strip_sound:
                 subclip = subclip.without_audio()

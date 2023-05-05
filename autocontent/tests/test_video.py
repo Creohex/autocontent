@@ -175,26 +175,45 @@ def test_download_audio(use_dir, debug_json_opts):
 
 
 @pytest.mark.parametrize(
+    (
+        "source",
+        "expected",
+    ),
+    [
+        (TEST_VIDEO_ID, TEST_VIDEO_ID),
+        (f"/Users/user/bla/{TEST_VIDEO_ID}", TEST_VIDEO_ID),
+        (f"https://youtu.be/{TEST_VIDEO_ID}", TEST_VIDEO_ID),
+        ("x" * 15 + TEST_VIDEO_ID + ".qwe", TEST_VIDEO_ID),
+        (None, exceptions.ValidationError),
+        ("", exceptions.ValidationError),
+        ("gibberish", exceptions.ValidationError),
+    ],
+)
+def test_extract_video_id(source, expected):
+    if isinstance(expected, type):
+        with pytest.raises(expected):
+            Video.extract_video_id(source)
+    else:
+        assert Video.extract_video_id(source) == expected
+
+
+@pytest.mark.parametrize(
     ("path", "expected"),
     [
-        # empty
+        # empty:
         (None, YtDlpImporter(video_id=TEST_VIDEO_ID).default_filepath()),
         ("", YtDlpImporter(video_id=TEST_VIDEO_ID).default_filepath()),
-
-        # home
+        # home:
         ("~", utils.HOME_DIR / f"{TEST_VIDEO_ID}.mp4"),
         ("~/", utils.HOME_DIR / f"{TEST_VIDEO_ID}.mp4"),
         ("~/bla", utils.HOME_DIR / f"bla.mp4"),
         ("~/bla.mp4", utils.HOME_DIR / f"bla.mp4"),
-
-        # FIXME: depends on run dir..
-        # relative
+        # relative:  # FIXME: depends on run dir..
         (".", utils.ROOT_DIR / f"{TEST_VIDEO_ID}.mp4"),
         ("./", utils.ROOT_DIR / f"{TEST_VIDEO_ID}.mp4"),
         ("./bla", utils.ROOT_DIR / f"bla.mp4"),
         ("bla.webm", utils.ROOT_DIR / "bla.webm"),
-
-        # invalid
+        # invalid:
         ("/", exceptions.InvalidFilePath),
         ("/gibberish", exceptions.InvalidFilePath),
         ("/gibberish/gibberish/bla.mp4", exceptions.InvalidFilePath),
