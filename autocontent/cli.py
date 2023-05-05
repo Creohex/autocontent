@@ -241,7 +241,7 @@ def pull_audio(video_id, url, bitrate, output, force):
     help="strips audio from the resulting clip",
 )
 @opts_output_force
-def clip(source, t1, t2, strip_sound, output, force):
+def cut(source, t1, t2, strip_sound, output, force):
     """Cuts a clip from provided video file."""
 
     video = Video(filepath=source)
@@ -263,6 +263,17 @@ def modify_speed(source, factor, output, force):
     click.echo(f"Saved to {edited.filepath}")
 
 
+@click.command(help="Cuts quiet parts from a video file")
+@click.option("-s", "--source", required=True, type=str, help="Video file path")
+@opts_output_force
+def remove_silence(source, output, force):
+    """Cuts silent parts from a video file."""
+
+    video = Video(filepath=source)
+    edited = video.cut_silence(output_file=output, force=force)
+    click.echo(f"Saved to {edited.filepath}")
+
+
 # --- Misc ---
 @click.command()
 def test():
@@ -280,7 +291,8 @@ grp.add_command(convert)
 grp.add_command(chunk)
 
 grp.add_command(pull_video)
-grp.add_command(clip)
+grp.add_command(cut)
 grp.add_command(modify_speed)
+grp.add_command(remove_silence)
 
-grp.add_command(test)
+# grp.add_command(test)
