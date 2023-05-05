@@ -5,7 +5,7 @@ import re
 from abc import ABC, abstractmethod, abstractclassmethod
 from pathlib import Path
 
-from moviepy.editor import VideoFileClip, concatenate_videoclips, TextClip
+from moviepy.editor import concatenate_videoclips, TextClip, vfx, VideoFileClip
 from pytube import exceptions as pytube_exc, YouTube
 from pytube.cli import on_progress
 from yt_dlp import YoutubeDL as ytdlp
@@ -566,10 +566,33 @@ class Video:
 
         return Video(filepath=str(output_file))
 
-    def modify_speed(self, factor: int | None = None):
-        """..."""
+    def modify_speed(
+        self,
+        factor: float | None = None,
+        output_file: Path | str | None = None,
+        force: bool | None = False,
+    ):
+        """Produces clip with a modified playback speed."""
 
-        if not factor:
+        if (
+            not isinstance(factor, (int, float))
+            or not factor
+            or factor > VIDEO_SPEED_MAX_FACTOR
+        ):
             raise exceptions.ValidationError(value=factor)
+        factor = float(factor)
+        output_file = (
+            Path(output_file)
+            if output_file
+            else DEFAULT_DIR / f"{self.video_id}-spd-{factor}x.{FMT_MP4}"
+        )
+        force = False if force is None else force
 
-        raise NotImplementedError()
+        utils.ensure_inside_home(output_file)
+        utils.check_existing_file(output_file, force=force)
+        utils.ensure_folder(output_file)
+
+        clip = VideoFileClip(str(self.filepath)).fx(vfx.speedx, factor)
+        clip.write_videofile(str(output_file))
+
+        return Video(filepath=str(output_file))

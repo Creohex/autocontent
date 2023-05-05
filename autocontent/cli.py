@@ -224,7 +224,7 @@ def pull_audio(video_id, url, bitrate, output, force):
     click.echo(f"Saved to {audio.filepath}")
 
 
-@click.command()
+@click.command(help="Cut clip from video")
 @click.option("-s", "--source", required=True, type=str, help="Video file path")
 @click.option(
     "-a", "--t1", required=True, help="left time bracket in seconds or hh:mm:ss"
@@ -249,6 +249,20 @@ def clip(source, t1, t2, strip_sound, output, force):
     click.echo(f"Saved to {vid.filepath}")
 
 
+@click.command(help="Alter video playback speed")
+@click.option("-s", "--source", required=True, type=str, help="Video file path")
+@click.option(
+    "-x", "--factor", required=True, type=float, help="Speedup (or slowdown) factor"
+)
+@opts_output_force
+def modify_speed(source, factor, output, force):
+    """Modifies video playback speed to specified factor."""
+
+    video = Video(filepath=source)
+    edited = video.modify_speed(factor=factor, output_file=output, force=force)
+    click.echo(f"Saved to {edited.filepath}")
+
+
 # --- Misc ---
 @click.command()
 def test():
@@ -267,5 +281,6 @@ grp.add_command(chunk)
 
 grp.add_command(pull_video)
 grp.add_command(clip)
+grp.add_command(modify_speed)
 
 grp.add_command(test)
