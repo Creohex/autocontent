@@ -410,6 +410,7 @@ class Video:
         self.video_id = None
 
         if filepath:
+            # TODO: handle situations when there's no ID in the name present...
             self.filepath = self.check_video_file(filepath)
             self.video_id = self.extract_video_id(self.filepath.name)
         else:
@@ -534,14 +535,6 @@ class Video:
             DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}",
             False if force is None else force,
         )
-        # output_file = (
-        #     Path(output_file)
-        #     if output_file
-        #     else DEFAULT_DIR / f"{self.video_id}-clip-{float(t1)}-{float(t2)}.{FMT_MP4}"
-        # )
-        # utils.ensure_inside_home(output_file)
-        # utils.check_existing_file(output_file, force=force)
-        # utils.ensure_folder(output_file)
 
         with VideoFileClip(str(self.filepath)) as vid:
             subclip = vid.subclip(t1, t2)
