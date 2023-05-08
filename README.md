@@ -12,6 +12,7 @@ Overall scope, but it's definitely not final and is subject to change:
 - Integrations (google trends, openai, youtube api, ...)
 - CLI implementation
 - Rudimentary GUI
+- Other: scheduler (content uploading), queue (source content processing/pipelining), ...
 
 # Preparation / Usage
 ```bash
