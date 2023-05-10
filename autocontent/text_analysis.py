@@ -16,10 +16,10 @@ API_KEY_OPENAI = "openai_key"
 """API key config names."""
 
 API_KEYS = {
-    API_KEY_AI21: ai21.api_key,
-    API_KEY_OPENAI: openai.api_key,
+    ai21: API_KEY_AI21,
+    openai: API_KEY_OPENAI,
 }
-"""API key <-> lib config field mapping."""
+"""Lib <-> API key config name mapping."""
 
 SOURCE_TYPE_URL = "URL"
 SOURCE_TYPE_TEXT = "TEXT"
@@ -35,43 +35,28 @@ MAX_TOKENS_DEFAULT = 1000
 TEMPERATURE_DEFAULT = 0.75
 """Default model parameters."""
 
+JINJA_ENV = jinja2.Environment()
+"""Initialized jinja environment obj."""
 
-jinja_env = jinja2.Environment()
-"""..."""
 
+def ensure_key(lib) -> callable:
+    """Verify that API key is set for specific service."""
 
-def ensure_key(key_name: str) -> callable:
-    """Verify that API key is set before executing a function."""
+    key_name = API_KEYS[lib]
 
-    print(">>>")
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper():
-            if not API_KEYS[key_name]:
-                API_KEYS[key_name] = config(key_name)
-            f()
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not lib.api_key:
+                lib.api_key = config(key_name)
+            return func(*args, **kwargs)
 
+        return wrapper
 
     return decorator
 
 
-# def ensure_key_ai21(func) -> callable:
-#     @functools.wraps(func)
-#     def wrapper(*args, **kwargs):
-#         if not ai21.api_key:
-#             ai21.api_key = config(API_KEY_AI21)
-#         func(*args, **kwargs)
-
-
-# def ensure_key_openai(func) -> callable:
-#     @functools.wraps(func)
-#     def wrapper(*args, **kwargs):
-#         if not ai21.api_key:
-#             ai21.api_key = config(API_KEY_AI21)
-#         func(*args, **kwargs)
-
-
-@ensure_key(API_KEY_AI21)
+@ensure_key(ai21)
 def _request_segmentation(
     source: str,
     source_type: str = SOURCE_TYPE_TEXT,
@@ -94,8 +79,8 @@ def segment_from_url(url: str) -> list[str]:
     return _request_segmentation(url, source_type=SOURCE_TYPE_URL)
 
 
-@ensure_key(API_KEY_AI21)
-def sm(
+@ensure_key(ai21)
+def summarize(
     text: str,
     source_type: str = SOURCE_TYPE_TEXT,
 ) -> list[str]:
@@ -104,23 +89,23 @@ def sm(
     return Summarize.execute(source=text, source_type=source_type).summary
 
 
-@ensure_key(API_KEY_OPENAI)
+@ensure_key(openai)
 def completion(
-    text: str,
+    prompt: str,
     engine: str = ENGINE_DAVINCI,
     max_tokens: str = MAX_TOKENS_DEFAULT,
     temperature: str = TEMPERATURE_DEFAULT,
-) -> list[str]:
-    """..."""
+) -> str:
+    """OpenAI's typical GPT prompt completion."""
 
     compl = openai.Completion.create(
-        prompt=text, engine=engine, max_tokens=max_tokens, temperature=temperature
+        prompt=prompt, engine=engine, max_tokens=max_tokens, temperature=temperature
     )
 
     return compl.choices[0]["text"].strip()
 
 
-def completion_from_template(template, **template_params):
-    """..."""
+def completion_from_template(template: str, **template_params) -> str:
+    """GPT prompt completion using template."""
 
-    return completion(jinja_env.from_string(template).render(**template_params))
+    return completion(JINJA_ENV.from_string(template).render(**template_params))
