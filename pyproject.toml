@@ -22,6 +22,7 @@ jinja2 = "^3.1.2"
 openai = "^0.27.5"
 toml = "^0.10.2"
 progressbar = "^2.5"
+ai21 = "^1.0.5"
 
 
 [tool.poetry.group.dev.dependencies]
