@@ -1,7 +1,7 @@
 # About
 This is a hobby project started mostly due to curiousity of tackling a compound tooling/automation problem and a way to hone skills and practices along the way.
 
-The core idea is to eventually implement a complete automated pipeline of repurposing existing video content (mainly - podcasts) into complete finished/stylized/coherent shorter bite-sized format.
+The core idea is to eventually implement an automated pipeline of repurposing existing video content (mainly - podcasts) into complete finished/stylized/coherent shorter bite-sized format.
 
 Overall scope, but it's definitely not final and is subject to change:
 - Having the means to extract content - videos, transcriptions, etc.
