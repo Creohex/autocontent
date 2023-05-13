@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 import math
 import re
-from abc import ABC, abstractmethod, abstractclassmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 from moviepy.editor import (
