@@ -13,9 +13,9 @@ from ..video import Video, YtDlpImporter, FMT_MP4
 video.DEFAULT_DIR = utils.ROOT_DIR / "test_videos/"
 """Override default directgitory for video files for isolation purposes."""
 
-TEST_VIDEO_ID = "EngW7tLk6R8"  # 5-second
-TEST_VIDEO_ID_LONG = "0nTEfx44pws"  # 15-minute
-"""Small youtube video ID perfect for use in tests."""
+TEST_VIDEO_ID = "EngW7tLk6R8"  # 5 seconds long
+TEST_VIDEO_ID_LONG = "0nTEfx44pws"  # 15 minutes long
+"""Small-medium length youtube video IDs."""
 
 
 # --- Tooling: ---
