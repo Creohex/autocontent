@@ -17,7 +17,7 @@ Overall scope, but it's definitely not final and is subject to change:
 # Preparation / Usage
 ```bash
 poetry install
-source .venv/bin/activate
+poetry shell
 ./toolset.py --help
 ./toolset.py <command> --help
 ```
