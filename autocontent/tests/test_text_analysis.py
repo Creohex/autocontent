@@ -3,14 +3,15 @@
 import pytest
 
 from ..text_analysis import (
-    completion,
     completion_from_template,
-    summarize,
+    completion,
     segment,
+    suggest_titles,
+    summarize,
 )
 
 
-ALLOW_PAID_MODEL_USAGE = True
+ALLOW_PAID_MODEL_USAGE = False
 
 
 @pytest.fixture(autouse=True)
@@ -53,3 +54,17 @@ def test_segment():
 
     assert len(segments) == 2
     assert all([isinstance(_, str) for _ in segments])
+
+
+def test_suggest_titles():
+    context = (
+        "[00:00:00 - 00:00:02] - So contempt is criticism on steroids."
+        "[00:00:02 - 00:00:07] This is what John Gottman calls sulfuric acid for love."
+        "[00:00:07 - 00:00:10] Nothing will erode a relationship quicker than contempt."
+        "[00:00:10 - 00:00:13] Contempt is when you are looking at your partner"
+        "[00:00:13 - 00:00:15] from a superior position."
+    )
+    titles = suggest_titles(context, title_count=3)
+
+    assert len(titles) == 3
+    assert all([isinstance(title, str) for title in titles])
