@@ -11,26 +11,24 @@ from .video import Video, FMT_MP4, VideoImporter, AUDIO_BITRATE_DEFAULT
 def opts_video_id_url(method):
     """Click options template for video_id/url args."""
 
-    for dec in reversed(
-        [
-            click.option(
-                "-i",
-                "--video_id",
-                required=False,
-                default=None,
-                type=str,
-                help="Youtube video ID",
-            ),
-            click.option(
-                "-u",
-                "--url",
-                required=False,
-                default=None,
-                type=str,
-                help="Youtube video URL",
-            ),
-        ]
-    ):
+    for dec in [
+        click.option(
+            "-i",
+            "--video_id",
+            required=False,
+            default=None,
+            type=str,
+            help="Youtube video ID",
+        ),
+        click.option(
+            "-u",
+            "--url",
+            required=False,
+            default=None,
+            type=str,
+            help="Youtube video URL",
+        ),
+    ]:
         method = dec(method)
     return method
 
@@ -38,26 +36,24 @@ def opts_video_id_url(method):
 def opts_output_force(method):
     """Click options template for output/force args."""
 
-    for dec in reversed(
-        [
-            click.option(
-                "-o",
-                "--output",
-                required=False,
-                type=str,
-                default="",
-                help="output file name",
-            ),
-            click.option(
-                "-f",
-                "--force",
-                default=False,
-                is_flag=True,
-                show_default=True,
-                help="override target file if exists?",
-            ),
-        ]
-    ):
+    for dec in [
+        click.option(
+            "-o",
+            "--output",
+            required=False,
+            type=str,
+            default="",
+            help="output file name",
+        ),
+        click.option(
+            "-f",
+            "--force",
+            default=False,
+            is_flag=True,
+            show_default=True,
+            help="override target file if exists?",
+        ),
+    ]:
         method = dec(method)
     return method
 
