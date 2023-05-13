@@ -9,7 +9,10 @@ import openai
 from ai21 import Segmentation, Summarize
 
 from . import exceptions
-from .prompt_templates import VIDEO_TITLE_GENERATION
+from .prompt_templates import (
+    BEST_TITLE,
+    VIDEO_TITLE_GENERATION,
+)
 from .utils import config
 
 
@@ -131,3 +134,18 @@ def suggest_titles(context: str, title_count: int = 5) -> list[str]:
     )
 
     return ast.literal_eval(titles)
+
+
+def suggest_best_title(context: str) -> str:
+    """Generate titles for provided context and choose the best one.
+
+    - context (str): Text
+    """
+
+    return ast.literal_eval(
+        completion_from_template(
+            BEST_TITLE,
+            titles=str(suggest_titles(context, title_count=5)),
+            context=context,
+        )
+    )
