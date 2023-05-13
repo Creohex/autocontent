@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import functools
 
 import ai21
@@ -7,8 +8,9 @@ import jinja2
 import openai
 from ai21 import Segmentation, Summarize
 
+from . import exceptions
+from .prompt_templates import VIDEO_TITLE_GENERATION
 from .utils import config
-from .prompt_templates import SUMMARIZE_SINGLE
 
 
 API_KEY_AI21 = "ai21_key"
@@ -86,7 +88,8 @@ def summarize(
 ) -> list[str]:
     """Summarize text."""
 
-    return Summarize.execute(source=text, source_type=source_type).summary
+    request = Summarize.execute(source=text, sourceType=source_type)
+    return request.summary
 
 
 @ensure_key(openai)
@@ -109,3 +112,22 @@ def completion_from_template(template: str, **template_params) -> str:
     """GPT prompt completion using template."""
 
     return completion(JINJA_ENV.from_string(template).render(**template_params))
+
+
+def suggest_titles(context: str, title_count: int = 5) -> list[str]:
+    """Generates N titles for provided context.
+
+    - context (str): Text
+    - title_count (int, optional (5)): Amount of sample titles to generate
+    """
+
+    if not 0 < title_count < 20:
+        raise exceptions.ValidationError("Invalid title count", title_count)
+
+    titles = completion_from_template(
+        VIDEO_TITLE_GENERATION,
+        context=context,
+        title_count=title_count,
+    )
+
+    return ast.literal_eval(titles)
