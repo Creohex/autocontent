@@ -26,10 +26,18 @@ class Subs:
 
     def __init__(
         self,
-        transcript: str = None,
+        transcript: list[dict] = None,
         filepath: str = None,
         video_id: str = None,
+        sanitize: bool | None = True,
     ) -> Subs:
+        """Instatiate subtitle transcription (from different sources).
+
+        - transcript (list[dict], optional (None)): list of dicts (records)
+        - filepath (str, optional (None)): path to a .json file
+        - video_id (str, optional (None)): youtube video ID to download transcription from
+        - sanitize (bool | None, optional (True)): Sanitize transcription text on load
+        """
         if sum(map(bool, (transcript, filepath, video_id))) != 1:
             raise Exception("Either transcript, filepath or video_id must be provided")
 
@@ -50,9 +58,12 @@ class Subs:
             self.transcript = transcript
         elif filepath:
             self.transcript = self.load_subtitiles(filepath)
-        else:
+        elif video_id:
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             self.transcript = transcript_list.find_transcript(self.locales).fetch()
+
+        if sanitize:
+            self.sanitize()
 
     @classmethod
     def load_subtitiles(cls, file: Path | str) -> list[Subs]:
@@ -143,6 +154,17 @@ class Subs:
                 target_file = DEFAULT_DIR / Path(f"{utils.unique_id}_{tail}")
 
         return target_file
+
+    def sanitize(self) -> None:
+        """(in-place) Remove various artifacts from transcript."""
+
+        to_eliminate = ["-"]  # FIXME
+
+        for record in self.transcript:
+            for character in to_eliminate:
+                record["text"] = record["text"].replace(character, "")
+
+            record["text"] = record["text"].strip()
 
     @classmethod
     def format_txt(cls, records: list[dict[str, int | str]]) -> str:
