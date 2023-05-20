@@ -12,9 +12,6 @@ from ..text_analysis import (
 )
 
 
-ALLOW_PAID_MODEL_USAGE = False
-"""Flag which decides whether to skip tests that make requests to paid models or not."""
-
 TRANSCRIPTION_SAMPLE = """\
 "[00:00:00 - 00:00:02] - So contempt is criticism on steroids."
 "[00:00:02 - 00:00:07] This is what John Gottman calls sulfuric acid for love."
@@ -23,14 +20,6 @@ TRANSCRIPTION_SAMPLE = """\
 "[00:00:13 - 00:00:15] from a superior position."
 """
 """Short exaple of a video transcription (readable format)."""
-
-
-@pytest.fixture(autouse=True)
-def paid_model_requests():
-    """Autofixture to skip all cases if flag is not enabled."""
-
-    if not ALLOW_PAID_MODEL_USAGE:
-        pytest.skip()
 
 
 def test_completion():
