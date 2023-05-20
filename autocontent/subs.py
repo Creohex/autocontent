@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import math
 import time
+from itertools import pairwise
 from pathlib import Path
 
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -165,6 +167,31 @@ class Subs:
                 record["text"] = record["text"].replace(character, "")
 
             record["text"] = record["text"].strip()
+
+    def restructure(self, lines=3):
+        """(in-place) Split subtitles into blocks of words separated by newline.
+
+        - lines (int, optional (3)): Amount of lines '\n'-separated lines
+        """
+
+        if not 0 < lines < 10:
+            raise ValidationError(msg="Incorrect amount of lines provided", value=lines)
+
+        for record in self.transcript:
+            words = record["text"].replace("\n", " ").split()
+            words_per_line = len(words) // lines
+            if words_per_line == 0:
+                words_per_line = len(words)
+
+            restructured = []
+            left = 0
+            rem = len(words) % lines
+            for i in range(lines):
+                right = left + words_per_line + (1 if i < rem else 0)
+                restructured.append(" ".join(words[left:right]))
+                left = right
+
+            record["text"] = "\n".join(restructured)
 
     @classmethod
     def format_txt(cls, records: list[dict[str, int | str]]) -> str:
