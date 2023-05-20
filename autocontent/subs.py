@@ -8,7 +8,8 @@ from pathlib import Path
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from . import utils
+from . import exceptions, utils
+from .exceptions import ValidationError
 
 
 DEFAULT_DIR = utils.ROOT_DIR / "subs/"
@@ -17,7 +18,8 @@ DEFAULT_DIR = utils.ROOT_DIR / "subs/"
 FMT_JSON = "json"
 FMT_TXT = "txt"
 FMT_SRT = "srt"
-FORMATS_SUB = [FMT_JSON, FMT_TXT, FMT_SRT]
+FMT_COMPRESSED = "compressed"
+FORMATS_SUB = [FMT_JSON, FMT_TXT, FMT_SRT, FMT_COMPRESSED]
 """Supported subtitle formats."""
 
 
@@ -218,6 +220,12 @@ class Subs:
         return text
 
     @classmethod
+    def format_compressed(cls, records: list[dict[str, int | str]]) -> str:
+        """.compressed formatter."""
+
+        return "\n".join(f"{i} - {record['text']}" for i, record in enumerate(records))
+
+    @classmethod
     def format_subs(cls, records: list[dict[str, int | str]], fmt: str) -> str:
         """Formats subtitles from JSON to appropriate format.
 
@@ -231,5 +239,7 @@ class Subs:
             return cls.format_txt(records)
         elif fmt == FMT_SRT:
             return cls.format_srt(records)
+        elif fmt == FMT_COMPRESSED:
+            return cls.format_compressed(records)
         else:
             raise Exception(f"Unsupported format selected ({fmt})")
