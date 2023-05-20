@@ -4,7 +4,7 @@ import click
 
 from . import utils
 from .subs import FMT_JSON, FMT_SRT, FMT_TXT, FORMATS_SUB, Subs
-from .video import Video, FMT_MP4, VideoImporter, AUDIO_BITRATE_DEFAULT
+from .video import AUDIO_BITRATE_DEFAULT, FMT_MP4, Video, VideoImporter
 
 
 # --- Templates ---
@@ -291,4 +291,4 @@ grp.add_command(cut)
 grp.add_command(modify_speed)
 grp.add_command(remove_silence)
 
-# grp.add_command(test)
+grp.add_command(test)

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import toml
+from rich.console import Console
 
 from . import exceptions
 
@@ -251,5 +252,5 @@ class Config:
         return self.data[option_name]
 
 
-# FIXME: instantiate Config here
-config = Config.load()
+config = Config.load()  # FIXME: instantiate Config here?
+print = Console().print
