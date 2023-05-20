@@ -12,6 +12,12 @@ from ..text_analysis import (
 )
 
 
+@pytest.fixture(autouse=True)
+def handle_monetized_requests(monetized):
+    pass
+
+
+
 TRANSCRIPTION_SAMPLE = """\
 "[00:00:00 - 00:00:02] - So contempt is criticism on steroids."
 "[00:00:02 - 00:00:07] This is what John Gottman calls sulfuric acid for love."
