@@ -62,7 +62,7 @@ def opts_output_force(method):
 @click.command(help="Download youtube video transcription")
 @opts_video_id_url
 @opts_output_force
-def pull_subtitles(video_id, output, force):
+def pull_subtitles(video_id, url, output, force):
     """Downloads youtube video subtitles.
 
     video_id (str): youtube video ID
@@ -71,7 +71,7 @@ def pull_subtitles(video_id, output, force):
     """
 
     target_file = Path(__file__).parent.parent / "subs" / f"{output or video_id}.json"
-    Subs(video_id=video_id).save(target_file, fmt=FMT_JSON, force=force)
+    Subs(video_id=video_id, sanitize=True).save(target_file, fmt=FMT_JSON, force=force)
     click.echo(f"Saved to: {target_file}")
 
 
