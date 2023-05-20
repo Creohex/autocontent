@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-import math
 import time
-from itertools import pairwise
+from copy import deepcopy
 from pathlib import Path
 
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -67,7 +66,7 @@ class Subs:
             self.transcript = transcript_list.find_transcript(self.locales).fetch()
 
         if sanitize:
-            self.sanitize()
+            self.transcript = self.sanitize(self.transcript)
 
     @classmethod
     def load_subtitiles(cls, file: Path | str) -> list[Subs]:
@@ -159,27 +158,40 @@ class Subs:
 
         return target_file
 
-    def sanitize(self) -> None:
-        """(in-place) Remove various artifacts from transcript."""
+    @classmethod
+    def _sanitize(cls, records: list):
+        """Remove unneeded elements from transcript."""
 
-        to_eliminate = ["-"]  # FIXME
+        to_eliminate = ["-"]  # TODO: ...
+        result = deepcopy(records)
 
-        for record in self.transcript:
+        for record in result:
             for character in to_eliminate:
                 record["text"] = record["text"].replace(character, "")
 
             record["text"] = record["text"].strip()
 
-    def restructure(self, lines=3):
-        """(in-place) Split subtitles into blocks of words separated by newline.
+        return result
 
+    def sanitize(self) -> None:
+        """(in-place) Transcript sanitize method."""
+
+        self.transcript = self._sanitize(self.transcript)
+
+    @classmethod
+    def _restructure(cls, records: list, lines: int = 3) -> str:
+        """Split subtitles into blocks of words separated by newline.
+
+        - records (list): Transcript
         - lines (int, optional (3)): Amount of lines '\n'-separated lines
         """
 
         if not 0 < lines < 10:
             raise ValidationError(msg="Incorrect amount of lines provided", value=lines)
 
-        for record in self.transcript:
+        records = deepcopy(records)
+
+        for record in records:
             words = record["text"].replace("\n", " ").split()
             words_per_line = len(words) // lines
             if words_per_line == 0:
@@ -194,6 +206,13 @@ class Subs:
                 left = right
 
             record["text"] = "\n".join(restructured)
+
+        return records
+
+    def restructure(self, lines: int = 3) -> None:
+        """(in-place) Split subtitles into blocks of words separated by newline."""
+
+        self.transcript = self._restructure(self.transcript, lines=lines)
 
     @classmethod
     def format_txt(cls, records: list[dict[str, int | str]]) -> str:
@@ -223,7 +242,7 @@ class Subs:
     def format_compressed(cls, records: list[dict[str, int | str]]) -> str:
         """.compressed formatter."""
 
-        return "\n".join(f"{i} - {record['text']}" for i, record in enumerate(records))
+        return "\n".join(f"{i}: {record['text']}" for i, record in enumerate(records))
 
     @classmethod
     def format_subs(cls, records: list[dict[str, int | str]], fmt: str) -> str:
@@ -240,6 +259,6 @@ class Subs:
         elif fmt == FMT_SRT:
             return cls.format_srt(records)
         elif fmt == FMT_COMPRESSED:
-            return cls.format_compressed(records)
+            return cls.format_compressed(cls._restructure(records, lines=1))
         else:
             raise Exception(f"Unsupported format selected ({fmt})")

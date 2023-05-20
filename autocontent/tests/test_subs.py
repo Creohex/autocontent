@@ -42,4 +42,4 @@ def test_restructure(lines):
 def test_format_compressed():
     text = Subs.format_compressed([{"text": "abc"}, {"text": "def"}, {"text": "ghi"}])
 
-    assert text == "0 - abc\n1 - def\n2 - ghi"
+    assert text == "0: abc\n1: def\n2: ghi"
